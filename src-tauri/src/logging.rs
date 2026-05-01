@@ -163,11 +163,37 @@ fn initialize_file_subscriber(
         .with_thread_names(false)
         .with_writer(non_blocking);
 
-    tracing_subscriber::registry()
-        .with(filter)
-        .with(formatter)
-        .try_init()
-        .map_err(|error| format!("注册日志订阅器失败: {error}"))?;
+    #[cfg(debug_assertions)]
+    {
+        let stderr_formatter = fmt::layer()
+            .compact()
+            .with_ansi(false)
+            .with_timer(fmt::time::ChronoLocal::new(
+                "%Y-%m-%d %H:%M:%S%.3f".to_string(),
+            ))
+            .with_file(include_source_metadata)
+            .with_line_number(include_source_metadata)
+            .with_target(include_source_metadata)
+            .with_thread_ids(false)
+            .with_thread_names(false)
+            .with_writer(std::io::stderr);
+
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(formatter)
+            .with(stderr_formatter)
+            .try_init()
+            .map_err(|error| format!("注册日志订阅器失败: {error}"))?;
+    }
+
+    #[cfg(not(debug_assertions))]
+    {
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(formatter)
+            .try_init()
+            .map_err(|error| format!("注册日志订阅器失败: {error}"))?;
+    }
 
     let _ = WORKER_GUARD.set(worker_guard);
     let _ = FILTER_HANDLE.set(filter_handle);
