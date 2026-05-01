@@ -39,9 +39,9 @@ DNF 按键连发工具，当前实现为 Tauri 2 + React 19 + Tailwind CSS 4 + R
 
 ```bash
 pnpm install
-pnpm dev
+pnpm dev            # 详见 [CONTRIBUTING.md](./CONTRIBUTING.md)
 pnpm dev:web
-pnpm check
+pnpm check          # 详细命令和校验要求见 [CONTRIBUTING.md](./CONTRIBUTING.md)
 pnpm check:all
 pnpm build:web
 pnpm build
@@ -84,8 +84,3 @@ pnpm rust:lint
 - 本项目源码按 [LICENSE.md](./LICENSE.md) 公开，仅供学习、研究和个人使用，禁止商业用途。
 - 本项目不是游戏官方工具，使用风险由使用者自行承担。
 - 本项目使用 Noto Sans SC 字体，字体遵循 [SIL Open Font License 1.1](https://scripts.sil.org/OFL)。
-
-## 贡献
-
-贡献前请阅读 [CONTRIBUTING.md](./CONTRIBUTING.md) 和 [AGENTS.md](./AGENTS.md)。提交信息建议使用 Conventional Commits，例如 `fix: repair tray state sync`、`docs: update release notes`。
-
