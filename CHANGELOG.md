@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1] - 2026-05-01
+
+### Bug Fixed
+- 修复修改按键连发的时间间隔时，主窗口崩溃的问题。
+
 ## [0.3.0] - 2026-05-01
 
 ### Added
