@@ -1,0 +1,52 @@
+# Build cache
+tsconfig.tsbuildinfo
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies & build output
+node_modules
+dist
+dist-ssr
+*.local
+
+# Local tools
+.pnpm-store
+.tools
+.claude/settings*.json
+
+# Rust build
+src-tauri/target
+src-tauri/gen
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Rust coverage / backup
+tarpaulin.html
+*.bak
+
+# Windows system files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS system files
+._*
+
+# Editor directories and files
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

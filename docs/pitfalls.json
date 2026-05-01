@@ -1,0 +1,170 @@
+{
+  "$schema": "project-pitfalls",
+  "project": "DNF按键助手",
+  "description": "记录当前 Tauri + React + Rust 版本仍然适用的踩坑经验。",
+  "lastUpdated": "2026-04-30",
+  "pitfalls": [
+    {
+      "id": "sendinput-game-mode",
+      "category": "连发逻辑",
+      "title": "DNF 内连发需要使用游戏可识别的 SendInput 参数",
+      "currentStatus": "仍适用",
+      "symptoms": [
+        "前台窗口检测正常，但游戏内长按配置按键没有稳定连发效果",
+        "普通 VK + 扫描码输入可能同时影响游戏和聊天框"
+      ],
+      "rootCause": "DNF 对模拟输入参数较敏感。项目在游戏窗口内使用 vk=0xFF 的游戏模式输入，避免聊天框误识别；在记事本调试窗口内保留普通输入方便本地验证。",
+      "currentImplementation": {
+        "files": [
+          "src-tauri/src/core/autofire.rs",
+          "src-tauri/src/core/keyboard.rs",
+          "src-tauri/src/core/window.rs"
+        ],
+        "details": [
+          "autofire.rs 根据前台窗口决定使用普通输入还是游戏模式输入",
+          "keyboard.rs 的 send_game_key_down/send_game_key_up 使用 vk=0xFF",
+          "window.rs 当前目标窗口包括 DNF 类名和记事本调试类名"
+        ]
+      },
+      "keepInMind": [
+        "keyboard.rs 中 send_game_key 对非方向键刻意使用 wVk=0xFF 且不设置 KEYEVENTF_SCANCODE，以避免影响 DNF 游戏内打字；不要把它误判为漏发真实按键的缺陷。",
+        "调整连发循环时不要把 DNF 路径退回到普通 send_key_down/send_key_up",
+        "修改 Win32 输入逻辑后至少运行 pnpm rust:clippy 与 pnpm rust:test"
+      ]
+    },
+    {
+      "id": "frontend-owned-floating-control",
+      "category": "托盘与悬浮窗",
+      "title": "悬浮窗必须由前端创建，并通过事件与托盘同步",
+      "currentStatus": "仍适用",
+      "rootCause": "悬浮窗渲染 React 页面，需要由前端 WebviewWindow 创建；Rust 侧只负责托盘请求和菜单文字同步。",
+      "currentImplementation": {
+        "files": [
+          "src/app.tsx",
+          "src/lib/tauri.ts",
+          "src/lib/floating-control.ts",
+          "src/features/floating-control/floating-control-window.tsx",
+          "src-tauri/src/lib.rs"
+        ],
+        "eventFlow": [
+          "Rust 托盘触发 floating-control:toggle-request",
+          "主窗口前端更新 floatingControlEnabled 状态",
+          "前端调用 showFloatingControlWindow 或 hideFloatingControlWindow",
+          "前端发送 floating-control:visibility-changed",
+          "Rust 更新托盘菜单文字"
+        ]
+      },
+      "keepInMind": [
+        "不要新增 Rust 侧 floating-control 窗口创建链路",
+        "悬浮窗 URL 固定为 /?view=floating-control",
+        "可见性状态由主窗口统一维护"
+      ]
+    },
+    {
+      "id": "powershell-encoding",
+      "category": "编码安全",
+      "title": "PowerShell 5.1 默认写文件会破坏 UTF-8 中文",
+      "currentStatus": "仍适用",
+      "symptoms": [
+        "中文文档或源码出现乱码",
+        "文件被写成 UTF-16LE 或旧代码页编码",
+        "检查脚本发现替换字符或典型乱码片段"
+      ],
+      "currentImplementation": {
+        "files": [
+          "scripts/check-encoding.mjs",
+          "AGENTS.md",
+          "CLAUDE.md"
+        ],
+        "commands": [
+          "pnpm encoding:check",
+          "pnpm check"
+        ]
+      },
+      "keepInMind": [
+        "手工修改优先使用 apply_patch",
+        "批量重写使用 Node.js fs.writeFile(path, text, \"utf8\")",
+        "不要用 PowerShell 默认 Set-Content、Out-File、Add-Content、>、>> 写源码"
+      ]
+    },
+    {
+      "id": "ocr-class-detection-abandoned",
+      "category": "职业识别",
+      "title": "游戏内职业名 OCR 不作为当前方案",
+      "currentStatus": "配置结构保留，当前界面以手动职业配置为主",
+      "rootCause": "DNF 游戏字体、描边、阴影和小尺寸区域会导致 OCR 识别不稳定。此前多种 OCR 方案都无法稳定识别职业名。",
+      "currentImplementation": {
+        "files": [
+          "src/lib/config.ts",
+          "src/lib/tauri.ts",
+          "src-tauri/src/lib.rs"
+        ],
+        "details": [
+          "detection 字段仍在配置 schema 中保留",
+          "当前没有后端 OCR 或模板匹配命令",
+          "用户通过主界面或悬浮窗手动选择当前配置"
+        ]
+      },
+      "keepInMind": [
+        "不要把 detection 字段描述为已完成的自动识别功能",
+        "如重启自动识别方案，优先评估模板匹配或其他非 OCR 路线"
+      ]
+    },
+    {
+      "id": "pnpm-script-source-of-truth",
+      "category": "开发流程",
+      "title": "开发流程以 package.json 中的 pnpm 脚本为准",
+      "currentStatus": "仍适用",
+      "rootCause": "项目已从旧的 Rust-only/PowerShell/cargo-make 文档迁移到统一 pnpm 脚本。",
+      "currentImplementation": {
+        "files": [
+          "package.json"
+        ],
+        "commands": [
+          "pnpm check",
+          "pnpm check:all",
+          "pnpm run ci",
+          "pnpm rust:lint",
+          "pnpm rust:test"
+        ]
+      },
+      "keepInMind": [
+        "不要新增引用 scripts/check.ps1、scripts/format.ps1 或 cargo make 的流程文档",
+        "Rust 命令需要通过 --manifest-path src-tauri/Cargo.toml 或 pnpm rust:* 脚本运行"
+      ]
+    }
+  ],
+  "bestPractices": [
+    {
+      "category": "代码质量",
+      "practice": "每次修改后按影响范围运行最小必要检查，提交前运行 pnpm check:all 或 pnpm run ci",
+      "commands": [
+        "pnpm check",
+        "pnpm check:all",
+        "pnpm run ci"
+      ]
+    },
+    {
+      "category": "前端预览",
+      "practice": "只验证 React 界面时使用 pnpm dev:web，Tauri API 会自动进入 mock 模式"
+    },
+    {
+      "category": "Windows 能力",
+      "practice": "涉及键盘钩子、SendInput、托盘、注册表启动项时，在 Windows Tauri 应用中验证"
+    },
+    {
+      "category": "文档维护",
+      "practice": "文档中引用文件路径或命令时，以当前文件树和 package.json 为准"
+    }
+  ],
+  "removedOutdatedDocs": [
+    {
+      "path": "docs/nwg-gui-spec.json",
+      "reason": "旧 Native Windows GUI 方案，当前项目已迁移为 Tauri 2 + React 19"
+    },
+    {
+      "path": "docs/development-workflow.md",
+      "reason": "引用不存在的 scripts/*.ps1 和 cargo-make 流程，已由 package.json 的 pnpm 脚本替代"
+    }
+  ]
+}
