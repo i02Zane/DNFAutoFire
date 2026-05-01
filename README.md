@@ -11,7 +11,7 @@ DNF 按键连发工具，当前实现为 Tauri 2 + React 19 + Tailwind CSS 4 + R
 | <img src="https://github.com/mouyase.png?size=96" width="48" height="48" alt="mouyase" /> | [mouyase](https://github.com/mouyase) | 原项目作者 |
 | <img src="https://github.com/i02Zane.png?size=96" width="48" height="48" alt="i02Zane" /> | [i02Zane](https://github.com/i02Zane) | 当前维护者 |
 
-本项目基于/参考原项目继续维护。请不要暗示本项目由原作者、游戏厂商或第三方素材权利人官方认可、赞助或背书。
+本项目基于[原项目dev分支](https://github.com/mouyase/DNFAutoFire/tree/dev)继续维护。
 
 ## 当前功能
 
@@ -23,7 +23,7 @@ DNF 按键连发工具，当前实现为 Tauri 2 + React 19 + Tailwind CSS 4 + R
 - 悬浮窗：前端创建的唯一悬浮控制窗，可选择配置并启动/停止助手。
 - 托盘：打开主界面、打开/关闭悬浮窗、显示当前配置、退出。
 - 设置：开机时启动、启动到托盘、启动时自动打开悬浮窗。
-- 浏览器预览：`pnpm dev:web` 下自动进入 mock 模式。
+- 浏览器预览（仅开发者）：`pnpm dev:web` 下自动进入 mock 模式。
 
 ## 技术栈
 
