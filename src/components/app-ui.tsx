@@ -381,7 +381,8 @@ export function KeyTable({
               type="number"
               value={draftValues[`${key.vk}-${index}`] ?? String(key.intervalMs)}
               onBlur={(event) => {
-                const nextValue = normalizeInterval(Number(event.currentTarget.value));
+                const rawValue = event.currentTarget.value;
+                const nextValue = normalizeInterval(Number(rawValue));
                 setDraftValues((current) => {
                   const next = { ...current };
                   delete next[`${key.vk}-${index}`];
@@ -390,9 +391,10 @@ export function KeyTable({
                 onUpdate(index, { intervalMs: nextValue });
               }}
               onChange={(event) => {
+                const rawValue = event.currentTarget.value;
                 setDraftValues((current) => ({
                   ...current,
-                  [`${key.vk}-${index}`]: event.currentTarget.value,
+                  [`${key.vk}-${index}`]: rawValue,
                 }));
               }}
               onKeyDown={(event) => {
