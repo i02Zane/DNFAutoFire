@@ -19,7 +19,12 @@ dist-ssr
 # Local tools
 .pnpm-store
 .tools
-.claude/settings*.json
+.claude
+.agents
+.vscode
+
+# Todo
+TODO.md
 
 # Rust build
 src-tauri/target
