@@ -317,12 +317,10 @@ fn replace_file(source: &Path, target: &Path) -> std::io::Result<()> {
 fn default_config() -> AppConfig {
     AppConfig {
         version: CONFIG_VERSION,
-        global_keys: vec![
-            KeyBinding {
-                vk: 0x58,
-                interval_ms: DEFAULT_INTERVAL_MS,
-            },
-        ],
+        global_keys: vec![KeyBinding {
+            vk: 0x58,
+            interval_ms: DEFAULT_INTERVAL_MS,
+        }],
         combo_defs: Vec::new(),
         classes: BTreeMap::new(),
         custom_configs: BTreeMap::new(),
