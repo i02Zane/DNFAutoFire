@@ -141,10 +141,11 @@ export function FloatingControlView() {
         <div className="min-w-0 flex-1 self-stretch" data-tauri-drag-region />
         <button
           aria-label={running ? "停止连发" : "启动连发"}
-          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition ${running
-            ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
-            : "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100"
-            }`}
+          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition ${
+            running
+              ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+              : "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100"
+          }`}
           type="button"
           onClick={() => void toggleFloatingAutofire()}
         >
