@@ -10,7 +10,7 @@ import {
   Trash2,
   Wand2,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AppTitleBar,
   ConfigSelect,
@@ -46,6 +46,7 @@ import {
 } from "./lib/config";
 import { FLOATING_CONTROL_VIEW } from "./lib/floating-control";
 import { keyOptions, normalizeInterval } from "./lib/keys";
+import { getWebviewTextScale } from "./lib/window-scale";
 import {
   type AppConfig,
   ComboDefinition,
@@ -98,6 +99,8 @@ function MainApp() {
   // 状态分层：config 是持久配置，runtimeState 是运行状态，uiState 只保存临时界面状态。
   const running = runtimeState.running;
   const { comboClassId, floatingControlEnabled, message, page, recordingHotkey, target } = uiState;
+  const mainWindowBaseSizeRef = useRef<{ width: number; height: number } | null>(null);
+  const appliedMainWindowSizeRef = useRef<{ width: number; height: number } | null>(null);
 
   const setRunning = useCallback((nextRunning: boolean) => {
     setRuntimeState({ running: nextRunning });
@@ -238,6 +241,62 @@ function MainApp() {
     toggleFloatingControlEnabled,
     updateConfig,
   });
+
+  useEffect(() => {
+    if (isMockMode()) return;
+
+    let disposed = false;
+    let frameId = 0;
+
+    const resizeMainWindow = async () => {
+      const { LogicalSize, currentMonitor, getCurrentWindow, primaryMonitor } =
+        await import("@tauri-apps/api/window");
+      const monitor = (await currentMonitor()) ?? (await primaryMonitor());
+      if (!monitor || disposed) return;
+
+      const textScale = getWebviewTextScale(monitor.scaleFactor);
+      const rootRect = document.documentElement.getBoundingClientRect();
+      if (rootRect.width <= 0 || rootRect.height <= 0) return;
+
+      const baseSize = mainWindowBaseSizeRef.current ?? {
+        width: rootRect.width,
+        height: rootRect.height,
+      };
+      mainWindowBaseSizeRef.current = baseSize;
+
+      const nextSize = {
+        width: Math.ceil(baseSize.width * textScale),
+        height: Math.ceil(baseSize.height * textScale),
+      };
+      const appliedSize = appliedMainWindowSizeRef.current;
+      if (appliedSize?.width === nextSize.width && appliedSize?.height === nextSize.height) {
+        return;
+      }
+
+      appliedMainWindowSizeRef.current = nextSize;
+      await getCurrentWindow().setSize(new LogicalSize(nextSize.width, nextSize.height));
+    };
+
+    const scheduleResize = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        void resizeMainWindow().catch(() => undefined);
+      });
+    };
+
+    scheduleResize();
+
+    const observer = new ResizeObserver(scheduleResize);
+    observer.observe(document.documentElement);
+    window.addEventListener("resize", scheduleResize);
+
+    return () => {
+      disposed = true;
+      window.cancelAnimationFrame(frameId);
+      observer.disconnect();
+      window.removeEventListener("resize", scheduleResize);
+    };
+  }, []);
 
   function updateSelectedKeys(keys: KeyBinding[]) {
     if (!target) return;
