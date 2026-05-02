@@ -243,15 +243,15 @@ function MainApp() {
     if (isMockMode()) return;
 
     const resizeMainWindow = async () => {
-      const { LogicalSize, currentMonitor, getCurrentWindow, primaryMonitor } =
+      const { PhysicalSize, currentMonitor, getCurrentWindow, primaryMonitor } =
         await import("@tauri-apps/api/window");
       const monitor = (await currentMonitor()) ?? (await primaryMonitor());
       if (!monitor) return;
 
       const textScale = getWebviewTextScale(monitor.scaleFactor);
-      const baseSize = { width: 1280, height: 760 };
+      const baseSize = await getCurrentWindow().innerSize();
       await getCurrentWindow().setSize(
-        new LogicalSize(
+        new PhysicalSize(
           Math.ceil(baseSize.width * textScale),
           Math.ceil(baseSize.height * textScale),
         ),
