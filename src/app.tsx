@@ -10,7 +10,7 @@ import {
   Trash2,
   Wand2,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AppTitleBar,
   ConfigSelect,
@@ -46,6 +46,7 @@ import {
 } from "./lib/config";
 import { FLOATING_CONTROL_VIEW } from "./lib/floating-control";
 import { keyOptions, normalizeInterval } from "./lib/keys";
+import { getWebviewTextScale } from "./lib/window-scale";
 import {
   type AppConfig,
   ComboDefinition,
@@ -98,7 +99,6 @@ function MainApp() {
   // 状态分层：config 是持久配置，runtimeState 是运行状态，uiState 只保存临时界面状态。
   const running = runtimeState.running;
   const { comboClassId, floatingControlEnabled, message, page, recordingHotkey, target } = uiState;
-
   const setRunning = useCallback((nextRunning: boolean) => {
     setRuntimeState({ running: nextRunning });
   }, []);
@@ -238,6 +238,28 @@ function MainApp() {
     toggleFloatingControlEnabled,
     updateConfig,
   });
+
+  useEffect(() => {
+    if (isMockMode()) return;
+
+    const resizeMainWindow = async () => {
+      const { PhysicalSize, currentMonitor, getCurrentWindow, primaryMonitor } =
+        await import("@tauri-apps/api/window");
+      const monitor = (await currentMonitor()) ?? (await primaryMonitor());
+      if (!monitor) return;
+
+      const textScale = getWebviewTextScale(monitor.scaleFactor);
+      const baseSize = await getCurrentWindow().innerSize();
+      await getCurrentWindow().setSize(
+        new PhysicalSize(
+          Math.ceil(baseSize.width * textScale),
+          Math.ceil(baseSize.height * textScale),
+        ),
+      );
+    };
+
+    void resizeMainWindow().catch(() => undefined);
+  }, []);
 
   function updateSelectedKeys(keys: KeyBinding[]) {
     if (!target) return;

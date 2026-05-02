@@ -5,6 +5,7 @@ import {
   FLOATING_CONTROL_MARGIN,
   FLOATING_CONTROL_POSITION_KEY,
   FLOATING_CONTROL_VIEW,
+  getFloatingControlTextScale,
 } from "../lib/floating-control";
 import { FLOATING_CONTROL_WINDOW_TITLE } from "../lib/app-meta";
 import { isTauriEnvironment } from "../lib/tauri-env";
@@ -34,8 +35,9 @@ async function defaultFloatingControlPosition(): Promise<SavedWindowPosition | n
   const monitor = await primaryMonitor();
   if (!monitor) return null;
 
-  const width = FLOATING_CONTROL_INITIAL_SIZE.width * monitor.scaleFactor;
-  const height = FLOATING_CONTROL_INITIAL_SIZE.height * monitor.scaleFactor;
+  const textScale = getFloatingControlTextScale(monitor.scaleFactor);
+  const width = FLOATING_CONTROL_INITIAL_SIZE.width * textScale * monitor.scaleFactor;
+  const height = FLOATING_CONTROL_INITIAL_SIZE.height * textScale * monitor.scaleFactor;
   return {
     x: Math.round(
       monitor.workArea.position.x + monitor.workArea.size.width - width - FLOATING_CONTROL_MARGIN,
@@ -56,7 +58,7 @@ export async function showFloatingControlWindow(): Promise<boolean> {
   }
 
   const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
-  const { PhysicalPosition } = await import("@tauri-apps/api/window");
+  const { PhysicalPosition, primaryMonitor } = await import("@tauri-apps/api/window");
   // 悬浮控制保持全局唯一：已存在时只恢复显示和焦点，不再创建第二个窗口。
   const existingWindow = await WebviewWindow.getByLabel(FLOATING_CONTROL_LABEL);
   if (existingWindow) {
@@ -68,11 +70,13 @@ export async function showFloatingControlWindow(): Promise<boolean> {
   // 优先恢复上次拖动的位置；没有历史位置时，再按屏幕右下角计算初始点。
   const savedPosition = readFloatingControlPosition();
   const initialPosition = savedPosition ?? (await defaultFloatingControlPosition());
+  const monitor = await primaryMonitor();
+  const textScale = monitor ? getFloatingControlTextScale(monitor.scaleFactor) : 1;
   const controlWindow = new WebviewWindow(FLOATING_CONTROL_LABEL, {
     title: FLOATING_CONTROL_WINDOW_TITLE,
     url: `/?view=${FLOATING_CONTROL_VIEW}`,
-    width: FLOATING_CONTROL_INITIAL_SIZE.width,
-    height: FLOATING_CONTROL_INITIAL_SIZE.height,
+    width: Math.ceil(FLOATING_CONTROL_INITIAL_SIZE.width * textScale),
+    height: Math.ceil(FLOATING_CONTROL_INITIAL_SIZE.height * textScale),
     resizable: false,
     decorations: false,
     alwaysOnTop: true,
