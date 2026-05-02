@@ -104,7 +104,7 @@ ci: add Windows quality checks
 
 ## 版本发布
 
-- 版本号变更时，必须同步更新 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.toml` 和 `src/app-meta.ts`。
+- 版本号变更时，必须同步更新 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.toml` 和 `src/lib/app-meta.ts`。
 - 发布 tag 统一使用 `v` 前缀格式，并且必须与实际版本号一致，例如 `v0.3.0` 对应 `0.3.0`。
-- 同步补写 `CHANGELOG.md`。
+- 同步补写 `CHANGELOG.md`，内容需要根据与前一个tag之间的commit生成。
 - 更新后必须运行 `pnpm build`，确认构建通过，并检查 `src-tauri/Cargo.lock` 是否随之更新。

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.2] - 2026-05-02
+
+### Bug Fixed
+- 修复没有自动获取应用权限的问题。
+- 修复 Win10 下使用了旧的 comctl32 系统组件的问题。
+
 ## [0.3.1] - 2026-05-01
 
 ### Bug Fixed
@@ -24,4 +30,3 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - 默认连发按键调整为 `X`。
 - Windows 安装包改为中文界面，默认只生成 NSIS 发行包。
-
