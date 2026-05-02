@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <!-- 应用清单身份：用于 Windows 生成进程激活上下文。 -->
+  <!-- Application identity used by Windows to build the activation context. -->
   <assemblyIdentity version="1.0.0.0" processorArchitecture="amd64" name="io.github.i02zane.dnfautofire" type="win32" />
 
-  <!-- 启用 Common Controls v6，确保 TaskDialogIndirect 等现代系统控件 API 可用。 -->
+  <!-- Enable Common Controls v6 so modern shell dialog APIs like TaskDialogIndirect are available. -->
   <dependency>
     <dependentAssembly>
       <assemblyIdentity
@@ -17,7 +17,7 @@
     </dependentAssembly>
   </dependency>
 
-  <!-- 请求管理员权限：全局键盘钩子和输入模拟在部分环境下需要提升权限。 -->
+  <!-- Request administrator privileges for global hooks and input simulation. -->
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security>
       <requestedPrivileges>
@@ -26,7 +26,7 @@
     </security>
   </trustInfo>
 
-  <!-- DPI 感知：在多显示器和缩放环境下使用 PerMonitorV2。 -->
+  <!-- DPI awareness: use PerMonitorV2 on multi-monitor and scaled displays. -->
   <application xmlns="urn:schemas-microsoft-com:asm.v3">
     <windowsSettings>
       <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
