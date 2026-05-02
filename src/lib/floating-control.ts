@@ -7,3 +7,11 @@ export const FLOATING_CONTROL_INITIAL_SIZE = {
   height: 58,
 };
 export const FLOATING_CONTROL_MARGIN = 18;
+
+export function getFloatingControlTextScale(monitorScaleFactor: number): number {
+  if (typeof window === "undefined") return 1;
+
+  const rasterizationScale = window.devicePixelRatio || 1;
+  const textScale = rasterizationScale / monitorScaleFactor;
+  return Number.isFinite(textScale) && textScale > 0 ? textScale : 1;
+}
