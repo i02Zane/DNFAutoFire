@@ -542,7 +542,7 @@ function MainApp() {
           </div>
         </aside>
 
-        <main className="grid min-w-0 flex-1 grid-rows-[1fr_76px]">
+        <main className="grid min-h-0 min-w-0 flex-1 grid-rows-[1fr_76px]">
           <div className="min-h-0 overflow-hidden">
             {page === "autofire" ? (
               <div className="relative h-full min-w-0">
@@ -664,17 +664,17 @@ function MainApp() {
                     onClick={closeTarget}
                   >
                     <aside
-                      className="h-full w-[380px] border-l border-slate-200 bg-white px-5 py-6 shadow-2xl"
+                      className="flex h-full w-[380px] flex-col overflow-visible border-l border-slate-200 bg-white shadow-2xl"
                       onClick={(event) => event.stopPropagation()}
                     >
-                      <div className="mb-5">
+                      <div className="px-5 pt-6 pb-5">
                         <h2 className="text-lg font-semibold">{selectedTitle}</h2>
                         <p className="mt-1 text-xs text-slate-500">按键与间隔会自动保存。</p>
                       </div>
 
                       {target.type === "profile" && (
-                        <>
-                          <div className="mb-5">
+                        <div className="px-5 pb-5">
+                          <div>
                             <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-slate-500">
                               <span>生效规则</span>
                               <RuleHelpTooltip />
@@ -698,15 +698,17 @@ function MainApp() {
                               />
                             </div>
                           </div>
-                        </>
+                        </div>
                       )}
 
-                      <KeyTable
-                        keys={selectedKeys}
-                        onAdd={addKey}
-                        onDelete={deleteKey}
-                        onUpdate={updateKey}
-                      />
+                      <div className="min-h-0 flex-1 px-5 pb-6">
+                        <KeyTable
+                          keys={selectedKeys}
+                          onAdd={addKey}
+                          onDelete={deleteKey}
+                          onUpdate={updateKey}
+                        />
+                      </div>
                     </aside>
                   </div>
                 )}
@@ -743,8 +745,8 @@ function MainApp() {
             )}
           </div>
 
-          <footer className="flex items-center gap-5 border-t border-slate-200 bg-white px-7">
-            <div className="min-w-0 flex-1">
+          <footer className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-5 border-t border-slate-200 bg-white px-7">
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-amber-400" />
                 <span className="text-sm font-medium text-slate-700">配置</span>
@@ -771,21 +773,21 @@ function MainApp() {
               </div>
               <div className="mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden">
                 <span className="shrink-0 text-xs text-slate-500">当前生效</span>
-                <div className="flex min-w-0 gap-1.5 overflow-hidden">
-                  <KeySummary active={false} keys={effectiveKeys} />
-                  {effectiveCombos.length > 0 && (
-                    <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 shadow-sm">
-                      {effectiveCombos.length} 个连招
-                    </span>
-                  )}
+                <div className="flex min-w-0 flex-nowrap gap-1.5 overflow-hidden">
+                  <span className="shrink-0 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 shadow-sm">
+                    {effectiveKeys.length} 个连发
+                  </span>
+                  <span className="shrink-0 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 shadow-sm">
+                    {effectiveCombos.length} 个连招
+                  </span>
                 </div>
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-6">
-              <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2">
+            <div className="flex min-w-0 shrink-0 items-center gap-4">
+              <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
                 <span className="text-sm font-medium text-slate-700">启动/停止快捷键</span>
                 <button
-                  className="h-9 min-w-[176px] rounded border border-slate-300 bg-slate-50 px-3 text-left text-sm font-medium text-slate-800 transition hover:border-blue-400 hover:bg-blue-50"
+                  className="h-9 min-w-[132px] max-w-[132px] rounded border border-slate-300 bg-slate-50 px-3 text-left text-sm font-medium text-slate-800 transition hover:border-blue-400 hover:bg-blue-50"
                   type="button"
                   onClick={() => setRecordingHotkey(true)}
                 >
@@ -805,7 +807,7 @@ function MainApp() {
                 </button>
               </div>
 
-              <div className="flex items-center justify-end">
+              <div className="flex shrink-0 items-center justify-end">
                 <button
                   className={`inline-flex h-10 items-center gap-2 rounded px-5 text-sm font-semibold text-white shadow-sm transition ${
                     running ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"

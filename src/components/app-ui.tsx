@@ -354,13 +354,13 @@ export function KeyTable({
   }, [onUpdate, recordingIndex]);
 
   return (
-    <div>
-      <div className="grid grid-cols-[92px_1fr_42px] gap-2 border-b border-slate-200 pb-2 text-xs font-medium text-slate-500">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="sticky top-0 z-10 grid grid-cols-[92px_1fr_42px] gap-2 border-b border-slate-200 bg-white pb-2 text-xs font-medium text-slate-500">
         <div>按键</div>
         <div>连发间隔(毫秒)</div>
         <div>删除</div>
       </div>
-      <div className="mt-2 space-y-2">
+      <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
         {keys.map((key, index) => (
           <div key={`${key.vk}-${index}`} className="grid grid-cols-[92px_1fr_42px] gap-2">
             <button
@@ -414,7 +414,7 @@ export function KeyTable({
         ))}
       </div>
       <button
-        className="mt-3 inline-flex h-9 items-center gap-1.5 rounded border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-700 transition hover:bg-blue-100"
+        className="mt-3 inline-flex h-9 shrink-0 items-center gap-1.5 rounded border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-700 transition hover:bg-blue-100"
         type="button"
         onClick={onAdd}
       >
@@ -542,7 +542,11 @@ export function KeySummary({ active, keys }: { active: boolean; keys: KeyBinding
   // 配置卡片和底部状态栏都复用这个摘要，空配置要显式显示“未设置”。
   if (keys.length === 0) {
     return (
-      <span className={active ? "text-xs text-blue-700" : "text-xs text-slate-400"}>未设置</span>
+      <span
+        className={active ? "shrink-0 text-xs text-blue-700" : "shrink-0 text-xs text-slate-400"}
+      >
+        未设置
+      </span>
     );
   }
   return (
@@ -550,7 +554,7 @@ export function KeySummary({ active, keys }: { active: boolean; keys: KeyBinding
       {keys.map((key) => (
         <span
           key={key.vk}
-          className={`rounded border px-2 py-1 text-xs font-medium ${
+          className={`shrink-0 rounded border px-2 py-1 text-xs font-medium ${
             active
               ? "border-blue-200 bg-white text-blue-800 shadow-sm"
               : "border-slate-200 bg-white text-slate-700 shadow-sm"
