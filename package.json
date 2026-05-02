@@ -1,7 +1,7 @@
 {
   "name": "dnf-auto-fire",
   "private": true,
-  "version": "0.3.2",
+  "version": "0.3.3",
   "license": "SEE LICENSE IN LICENSE.md",
   "packageManager": "pnpm@10.33.2",
   "type": "module",
