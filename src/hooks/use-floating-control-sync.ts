@@ -86,6 +86,31 @@ export function useFloatingControlSync({
   useEffect(() => {
     if (isMockMode()) return;
 
+    // 自动/手动识别切换也由主窗口落盘；悬浮窗只发起请求，避免多窗口各自保存配置。
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    const listenDetectionModeToggle = async () => {
+      unlisten = await listenAppEvent(APP_EVENTS.floatingControlDetectionModeToggleRequest, () => {
+        void updateConfig((currentConfig) => ({
+          ...currentConfig,
+          detection: {
+            ...currentConfig.detection,
+            enabled: !currentConfig.detection.enabled,
+          },
+        }));
+      });
+      if (disposed) unlisten();
+    };
+    void listenDetectionModeToggle().catch(() => undefined);
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [updateConfig]);
+
+  useEffect(() => {
+    if (isMockMode()) return;
+
     // 托盘只发出“切换请求”，真实窗口开关仍由主窗口状态驱动，保证入口一致。
     let disposed = false;
     let unlistenToggleRequest: (() => void) | undefined;
