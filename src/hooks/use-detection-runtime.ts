@@ -26,36 +26,45 @@ export function useDetectionRuntime({
     let disposed = false;
     let unlisten: (() => void) | undefined;
     const listenDetectionResults = async () => {
-      unlisten = await listenAppEvent(APP_EVENTS.classDetectionResult, ({ classIndex }) => {
-        const currentConfig = configRef.current;
-        if (!currentConfig.detection.enabled) {
-          return;
-        }
-        const nextClassId = classIndex === null ? null : getClassIdByDetectionIndex(classIndex);
+      unlisten = await listenAppEvent(
+        APP_EVENTS.classDetectionResult,
+        ({ classIndex, reason }) => {
+          const currentConfig = configRef.current;
+          if (!currentConfig.detection.enabled) {
+            return;
+          }
 
-        if (!nextClassId) {
-          if (currentConfig.detection.noMatchPolicy !== "global") {
+          // 只在 DNF 仍处于前台时处理识别失败；切到别的软件只是暂停识别结果，不改 activeClassId。
+          if (reason === "foregroundInactive") {
             return;
           }
-          if (currentConfig.activeClassId === null) {
+
+          const nextClassId = classIndex === null ? null : getClassIdByDetectionIndex(classIndex);
+
+          if (!nextClassId) {
+            if (currentConfig.detection.noMatchPolicy !== "global") {
+              return;
+            }
+            if (currentConfig.activeClassId === null) {
+              return;
+            }
+            void updateConfig((nextConfig) => ({
+              ...nextConfig,
+              activeClassId: null,
+            }));
             return;
           }
+
+          if (currentConfig.activeClassId === nextClassId) {
+            return;
+          }
+
           void updateConfig((nextConfig) => ({
             ...nextConfig,
-            activeClassId: null,
+            activeClassId: nextClassId,
           }));
-          return;
-        }
-
-        if (currentConfig.activeClassId === nextClassId) {
-          return;
-        }
-
-        void updateConfig((nextConfig) => ({
-          ...nextConfig,
-          activeClassId: nextClassId,
-        }));
-      });
+        },
+      );
       if (disposed) {
         unlisten();
       }
