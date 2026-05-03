@@ -1,4 +1,4 @@
-//! 职业识别核心逻辑：只保留截图、像素扫描和结果事件，不带任何预览 UI。
+//! 职业识别核心逻辑：只保留截图、AprilTag 扫描和结果事件，不带任何预览 UI。
 
 use parking_lot::Mutex;
 use serde::Serialize;
@@ -60,6 +60,7 @@ impl DetectionRuntime {
             self.enabled.store(false, Ordering::SeqCst);
             return Err("职业识别当前仅支持 Windows。".to_string());
         }
+
         Ok(())
     }
 
@@ -95,6 +96,8 @@ impl Drop for DetectionRuntime {
 mod windows_impl {
     use super::*;
     use crate::core::window::foreground_target_window_handle;
+    use apriltag::{Detector as AprilTagDetector, Family, Image as AprilTagImage};
+    use std::cell::RefCell;
     use std::thread::{self, JoinHandle};
     use std::time::{Duration, Instant};
     use tauri::Emitter;
@@ -108,10 +111,6 @@ mod windows_impl {
     use windows_capture::window::Window;
 
     const POLL_INTERVAL_MS: u64 = 200;
-    const PATTERN_SIZE: usize = 3;
-    const CLASS_ID_STEP: u8 = 2;
-    const CLASS_ID_OFFSET_X: usize = 4;
-    const CLASS_ID_OFFSET_Y: usize = 1;
     const MAP_REGION_BASE_SIZE: f32 = 24.0;
     const SCALE_BASE_HEIGHT: f32 = 600.0;
 
@@ -119,6 +118,18 @@ mod windows_impl {
     struct DetectionSignature {
         class_index: Option<u16>,
         reason: String,
+    }
+
+    #[derive(Debug)]
+    struct AprilTagRuntime {
+        detector: AprilTagDetector,
+        tag_image: Option<AprilTagImage>,
+        tag_image_width: usize,
+        tag_image_height: usize,
+    }
+
+    thread_local! {
+        static APRILTAG_RUNTIME: RefCell<Option<AprilTagRuntime>> = const { RefCell::new(None) };
     }
 
     #[derive(Debug)]
@@ -303,13 +314,13 @@ mod windows_impl {
         }
 
         fn process_frame(
-            &self,
+            &mut self,
             frame: &mut Frame,
         ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let width = frame.width() as usize;
             let height = frame.height() as usize;
 
-            if width / 2 < PATTERN_SIZE * 2 || height < PATTERN_SIZE {
+            if width / 2 < 6 || height < 3 {
                 return Ok(());
             }
 
@@ -331,7 +342,7 @@ mod windows_impl {
                 return Ok(());
             }
 
-            match detect_class_index(raw_data, row_pitch, width, height, region) {
+            match detect_class_index(raw_data, row_pitch, region)? {
                 Some(class_index) => {
                     emit_detection_result(
                         &self.app_handle,
@@ -354,6 +365,84 @@ mod windows_impl {
 
             Ok(())
         }
+    }
+
+    fn create_apriltag_runtime() -> Result<AprilTagRuntime, Box<dyn std::error::Error + Send + Sync>>
+    {
+        let mut detector = AprilTagDetector::builder()
+            .add_family_bits(Family::tag_36h11(), 2)
+            .build()?;
+        detector.set_thread_number(1);
+        detector.set_decimation(1.0);
+        detector.set_refine_edges(true);
+
+        Ok(AprilTagRuntime {
+            detector,
+            tag_image: None,
+            tag_image_width: 0,
+            tag_image_height: 0,
+        })
+    }
+
+    fn detect_class_index(
+        raw_data: &[u8],
+        row_pitch: usize,
+        region: DetectionRegion,
+    ) -> Result<Option<u16>, Box<dyn std::error::Error + Send + Sync>> {
+        with_apriltag_runtime(|runtime| {
+            if region.width == 0 || region.height == 0 {
+                return Ok(None);
+            }
+
+            if runtime.tag_image.is_none()
+                || runtime.tag_image_width != region.width
+                || runtime.tag_image_height != region.height
+            {
+                let image =
+                    AprilTagImage::zeros_with_stride(region.width, region.height, region.width)
+                        .map_err(|_| std::io::Error::other("无法创建 AprilTag 图像"))?;
+                runtime.tag_image = Some(image);
+                runtime.tag_image_width = region.width;
+                runtime.tag_image_height = region.height;
+            }
+
+            let image = runtime.tag_image.as_mut().expect("tag image should exist");
+            {
+                let dst = image.as_slice_mut();
+                for y in 0..region.height {
+                    let src_row = &raw_data[(region.y + y) * row_pitch + region.x * 4
+                        ..(region.y + y) * row_pitch + (region.x + region.width) * 4];
+                    let dst_row = &mut dst[y * region.width..(y + 1) * region.width];
+                    for (x, pixel) in dst_row.iter_mut().enumerate() {
+                        let offset = x * 4;
+                        let b = src_row[offset] as u16;
+                        let g = src_row[offset + 1] as u16;
+                        let r = src_row[offset + 2] as u16;
+                        *pixel = ((r * 77 + g * 150 + b * 29) >> 8) as u8;
+                    }
+                }
+            }
+
+            let detections = runtime.detector.detect(&*image);
+            let best = detections
+                .into_iter()
+                .max_by(|a, b| a.decision_margin().total_cmp(&b.decision_margin()));
+
+            Ok(best.and_then(|best| u16::try_from(best.id()).ok()))
+        })
+    }
+
+    fn with_apriltag_runtime<T>(
+        f: impl FnOnce(&mut AprilTagRuntime) -> Result<T, Box<dyn std::error::Error + Send + Sync>>,
+    ) -> Result<T, Box<dyn std::error::Error + Send + Sync>> {
+        APRILTAG_RUNTIME.with(|cell| {
+            let mut slot = cell.borrow_mut();
+            if slot.is_none() {
+                *slot = Some(create_apriltag_runtime()?);
+            }
+
+            f(slot.as_mut().expect("AprilTag runtime should exist"))
+        })
     }
 
     fn emit_detection_result(
@@ -386,69 +475,6 @@ mod windows_impl {
         ) {
             tracing::warn!(error = %error, "发送职业识别事件失败");
         }
-    }
-
-    fn detect_class_index(
-        raw_data: &[u8],
-        row_pitch: usize,
-        frame_width: usize,
-        frame_height: usize,
-        region: DetectionRegion,
-    ) -> Option<u16> {
-        let pair_width = PATTERN_SIZE * 2;
-        let region_x = region.x;
-        let region_y = region.y;
-        let region_width = region.width;
-        let region_height = region.height;
-
-        if region_width < pair_width || region_height < PATTERN_SIZE {
-            return None;
-        }
-
-        let y_end = region_y + region_height.saturating_sub(PATTERN_SIZE) + 1;
-        let x_end = region_x + region_width.saturating_sub(pair_width) + 1;
-
-        for y in region_y..y_end {
-            for x in region_x..x_end {
-                let Some(anchor_offset) = pixel_offset(raw_data, row_pitch, x, y) else {
-                    continue;
-                };
-
-                // 品红锚点检测 (BGRA: 255, 0, 255)。
-                if raw_data[anchor_offset] != 255
-                    || raw_data[anchor_offset + 1] != 0
-                    || raw_data[anchor_offset + 2] != 255
-                {
-                    continue;
-                }
-
-                let Some(data_x) = x.checked_add(CLASS_ID_OFFSET_X) else {
-                    continue;
-                };
-                let Some(data_y) = y.checked_add(CLASS_ID_OFFSET_Y) else {
-                    continue;
-                };
-
-                if data_x >= frame_width || data_y >= frame_height {
-                    continue;
-                }
-
-                if data_x >= region_x + region_width || data_y >= region_y + region_height {
-                    continue;
-                }
-
-                let Some(data_offset) = pixel_offset(raw_data, row_pitch, data_x, data_y) else {
-                    continue;
-                };
-
-                // 校验 R=255, B=0。
-                if raw_data[data_offset + 2] == 255 && raw_data[data_offset] == 0 {
-                    return Some(u16::from(raw_data[data_offset + 1] / CLASS_ID_STEP));
-                }
-            }
-        }
-
-        None
     }
 
     fn detect_town_icon(raw_data: &[u8], row_pitch: usize, region: DetectionRegion) -> bool {
@@ -487,11 +513,6 @@ mod windows_impl {
         false
     }
 
-    fn pixel_offset(raw_data: &[u8], row_pitch: usize, x: usize, y: usize) -> Option<usize> {
-        let offset = y.checked_mul(row_pitch)?.checked_add(x.checked_mul(4)?)?;
-        (offset + 3 < raw_data.len()).then_some(offset)
-    }
-
     fn fixed_detection_region(width: usize, height: usize) -> DetectionRegion {
         let scale = height as f32 / SCALE_BASE_HEIGHT;
         let half_width = (120.0 * scale).round().max(1.0) as usize;
@@ -522,6 +543,11 @@ mod windows_impl {
         }
     }
 
+    fn pixel_offset(raw_data: &[u8], row_pitch: usize, x: usize, y: usize) -> Option<usize> {
+        let offset = y.checked_mul(row_pitch)?.checked_add(x.checked_mul(4)?)?;
+        (offset + 3 < raw_data.len()).then_some(offset)
+    }
+
     fn is_pure_cyan(pixel: &[u8]) -> bool {
         pixel.len() >= 4 && pixel[0] == 255 && pixel[1] == 255 && pixel[2] == 0
     }
@@ -544,46 +570,9 @@ mod windows_impl {
         height: usize,
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, windows))]
     mod tests {
         use super::*;
-
-        #[test]
-        fn detect_class_index_reads_class_from_anchor() {
-            let width = 16;
-            let height = 16;
-            let row_pitch = width * 4;
-            let mut raw_data = vec![0u8; row_pitch * height];
-
-            let anchor_x = 4;
-            let anchor_y = 10;
-            let data_x = anchor_x + CLASS_ID_OFFSET_X;
-            let data_y = anchor_y + CLASS_ID_OFFSET_Y;
-            let anchor_offset = pixel_offset(&raw_data, row_pitch, anchor_x, anchor_y).unwrap();
-            raw_data[anchor_offset] = 255;
-            raw_data[anchor_offset + 1] = 0;
-            raw_data[anchor_offset + 2] = 255;
-
-            let data_offset = pixel_offset(&raw_data, row_pitch, data_x, data_y).unwrap();
-            raw_data[data_offset] = 0;
-            raw_data[data_offset + 1] = 4;
-            raw_data[data_offset + 2] = 255;
-
-            let class_index = detect_class_index(
-                &raw_data,
-                row_pitch,
-                width,
-                height,
-                DetectionRegion {
-                    x: 0,
-                    y: 8,
-                    width,
-                    height: 8,
-                },
-            );
-
-            assert_eq!(class_index, Some(2));
-        }
 
         #[test]
         fn detect_town_icon_detects_cyan_pair() {
