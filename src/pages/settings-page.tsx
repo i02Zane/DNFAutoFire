@@ -1,6 +1,7 @@
 import { SettingsSelect, SettingsSwitch } from "../components/app-ui";
+import { DETECTION_INTERVAL_OPTIONS, DETECTION_NO_MATCH_POLICY_OPTIONS } from "../lib/config";
 import { APP_DISPLAY_NAME } from "../lib/app-meta";
-import { type LogLevelSetting } from "../lib/tauri";
+import { type DetectionNoMatchPolicy, type LogLevelSetting } from "../lib/tauri";
 
 const LOG_LEVEL_OPTIONS: { label: string; value: LogLevelSetting }[] = [
   { label: "Trace", value: "trace" },
@@ -12,22 +13,34 @@ const LOG_LEVEL_OPTIONS: { label: string; value: LogLevelSetting }[] = [
 ];
 
 export function SettingsPage({
+  detectionEnabled,
+  detectionIntervalMs,
+  detectionNoMatchPolicy,
   launchAtStartup,
   logLevel,
   minimizeToTray,
   openFloatingControlOnStart,
   startMinimized,
   onLaunchAtStartupChange,
+  onDetectionEnabledChange,
+  onDetectionIntervalChange,
+  onDetectionNoMatchPolicyChange,
   onLogLevelChange,
   onMinimizeToTrayChange,
   onOpenFloatingControlOnStartChange,
   onStartMinimizedChange,
 }: {
+  detectionEnabled: boolean;
+  detectionIntervalMs: number;
+  detectionNoMatchPolicy: DetectionNoMatchPolicy;
   launchAtStartup: boolean;
   logLevel: LogLevelSetting;
   minimizeToTray: boolean;
   openFloatingControlOnStart: boolean;
   startMinimized: boolean;
+  onDetectionEnabledChange: (checked: boolean) => void;
+  onDetectionIntervalChange: (intervalMs: number) => void;
+  onDetectionNoMatchPolicyChange: (policy: DetectionNoMatchPolicy) => void;
   onLaunchAtStartupChange: (checked: boolean) => void;
   onLogLevelChange: (logLevel: LogLevelSetting) => void;
   onMinimizeToTrayChange: (checked: boolean) => void;
@@ -42,6 +55,32 @@ export function SettingsPage({
         </div>
         <div className="mt-1 space-y-1 text-sm leading-6 text-slate-500 hidden">
           <p>程序级设置。</p>
+        </div>
+
+        <div className="mt-6 overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
+          <SettingsSwitch
+            checked={detectionEnabled}
+            description="仅在打开时启动职业识别后台线程，并在关闭后停止扫描但保留当前结果。"
+            label="自动识别职业"
+            onChange={onDetectionEnabledChange}
+          />
+          <SettingsSelect
+            description="职业识别扫描频率。"
+            label="识别间隔"
+            options={DETECTION_INTERVAL_OPTIONS.map((intervalMs) => ({
+              label: `${intervalMs} ms`,
+              value: String(intervalMs),
+            }))}
+            value={String(detectionIntervalMs)}
+            onChange={(value) => onDetectionIntervalChange(Number(value))}
+          />
+          <SettingsSelect
+            description="识别失败时如何处理当前职业。"
+            label="未识别结果"
+            options={DETECTION_NO_MATCH_POLICY_OPTIONS}
+            value={detectionNoMatchPolicy}
+            onChange={(value) => onDetectionNoMatchPolicyChange(value as DetectionNoMatchPolicy)}
+          />
         </div>
 
         <div className="mt-6 overflow-hidden rounded border border-slate-200 bg-white shadow-sm">

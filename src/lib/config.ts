@@ -6,6 +6,7 @@ import {
   ComboDefinition,
   ComboValidationIssue,
   CustomConfig,
+  DetectionNoMatchPolicy,
   KeyBinding,
   LogLevelSetting,
   makeClassConfig,
@@ -26,9 +27,18 @@ export const COMBO_COMMAND_ALLOWED_VKS = new Set([
 ]);
 
 const DEFAULT_LOG_LEVEL: LogLevelSetting = import.meta.env.DEV ? "debug" : "info";
+export const DEFAULT_DETECTION_INTERVAL_MS = 200;
+export const DETECTION_INTERVAL_OPTIONS = [100, 200, 500, 1000] as const;
+export const DETECTION_NO_MATCH_POLICY_OPTIONS: {
+  label: string;
+  value: DetectionNoMatchPolicy;
+}[] = [
+  { label: "保持当前配置", value: "current" },
+  { label: "切回全局配置", value: "global" },
+];
 
 export const DEFAULT_CONFIG: AppConfig = {
-  version: 6,
+  version: 7,
   globalKeys: [{ vk: 0x58, intervalMs: 20 }],
   comboDefs: [],
   classes: {},
@@ -37,8 +47,9 @@ export const DEFAULT_CONFIG: AppConfig = {
   activeClassId: null,
   toggleHotkey: { ctrl: true, alt: false, shift: false, vk: 0x77 },
   detection: {
-    enabled: true,
-    intervalMs: 5000,
+    enabled: false,
+    intervalMs: DEFAULT_DETECTION_INTERVAL_MS,
+    noMatchPolicy: "current",
     iconDatabaseVersion: "builtin-empty-v1",
   },
   settings: {
@@ -49,6 +60,12 @@ export const DEFAULT_CONFIG: AppConfig = {
     logLevel: DEFAULT_LOG_LEVEL,
   },
 };
+
+export function normalizeDetectionIntervalMs(intervalMs: number): number {
+  return DETECTION_INTERVAL_OPTIONS.some((option) => option === intervalMs)
+    ? intervalMs
+    : DEFAULT_DETECTION_INTERVAL_MS;
+}
 
 export type ConfigOption = {
   id: string | null;

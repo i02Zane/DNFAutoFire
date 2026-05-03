@@ -26,6 +26,7 @@ import { classCategories } from "./data/classes";
 import { FloatingControlView } from "./floating-control/floating-control-view";
 import { useAppConfig } from "./hooks/use-app-config";
 import { useAssistantRuntime } from "./hooks/use-assistant-runtime";
+import { useDetectionRuntime } from "./hooks/use-detection-runtime";
 import { useFloatingControlSync } from "./hooks/use-floating-control-sync";
 import { useHotkeyRecorder } from "./hooks/use-hotkey-recorder";
 import {
@@ -42,6 +43,7 @@ import {
   hasDuplicateKeys,
   isClassVisible,
   isCustomConfigId,
+  normalizeDetectionIntervalMs,
   validateClassComboDefs,
 } from "./lib/config";
 import { FLOATING_CONTROL_VIEW } from "./lib/floating-control";
@@ -51,6 +53,7 @@ import {
   type AppConfig,
   ComboDefinition,
   EffectRule,
+  type DetectionNoMatchPolicy,
   KeyBinding,
   LogLevelSetting,
   hotkeyDisplay,
@@ -161,6 +164,11 @@ function MainApp() {
   const { launchAtStartup, minimizeToTray, openFloatingControlOnStart, startMinimized } =
     config.settings;
   const { logLevel } = config.settings;
+  const {
+    enabled: detectionEnabled,
+    intervalMs: detectionIntervalMs,
+    noMatchPolicy,
+  } = config.detection;
 
   // 快捷键录制要短暂接管全局键盘输入，单独拆出去避免污染页面交互逻辑。
   useHotkeyRecorder({
@@ -225,6 +233,14 @@ function MainApp() {
     showMessage,
     startupConfigLoaded,
     toggleHotkey: config.toggleHotkey,
+  });
+
+  useDetectionRuntime({
+    config,
+    configRef,
+    showMessage,
+    startupConfigLoaded,
+    updateConfig,
   });
 
   // 悬浮控制与主窗口双向同步，但真正的配置落盘仍只发生在主窗口。
@@ -365,6 +381,36 @@ function MainApp() {
 
   function updateOpenFloatingControlOnStart(checked: boolean) {
     updateSettings({ openFloatingControlOnStart: checked });
+  }
+
+  function updateDetectionEnabled(checked: boolean) {
+    void updateConfig((currentConfig) => ({
+      ...currentConfig,
+      detection: {
+        ...currentConfig.detection,
+        enabled: checked,
+      },
+    }));
+  }
+
+  function updateDetectionInterval(intervalMs: number) {
+    void updateConfig((currentConfig) => ({
+      ...currentConfig,
+      detection: {
+        ...currentConfig.detection,
+        intervalMs: normalizeDetectionIntervalMs(intervalMs),
+      },
+    }));
+  }
+
+  function updateDetectionNoMatchPolicy(policy: DetectionNoMatchPolicy) {
+    void updateConfig((currentConfig) => ({
+      ...currentConfig,
+      detection: {
+        ...currentConfig.detection,
+        noMatchPolicy: policy,
+      },
+    }));
   }
 
   function updateStartMinimized(checked: boolean) {
@@ -729,11 +775,17 @@ function MainApp() {
               />
             ) : page === "settings" ? (
               <SettingsPage
+                detectionEnabled={detectionEnabled}
+                detectionIntervalMs={detectionIntervalMs}
+                detectionNoMatchPolicy={noMatchPolicy}
                 launchAtStartup={launchAtStartup}
                 logLevel={logLevel}
                 minimizeToTray={minimizeToTray}
                 openFloatingControlOnStart={openFloatingControlOnStart}
                 startMinimized={startMinimized}
+                onDetectionEnabledChange={updateDetectionEnabled}
+                onDetectionIntervalChange={updateDetectionInterval}
+                onDetectionNoMatchPolicyChange={updateDetectionNoMatchPolicy}
                 onLaunchAtStartupChange={(checked) => void updateLaunchAtStartup(checked)}
                 onLogLevelChange={updateLogLevel}
                 onMinimizeToTrayChange={updateMinimizeToTray}
@@ -751,7 +803,9 @@ function MainApp() {
                 <span className="h-2 w-2 rounded-full bg-amber-400" />
                 <span className="text-sm font-medium text-slate-700">配置</span>
                 <ConfigSelect
+                  key={detectionEnabled ? "detection-locked" : "detection-unlocked"}
                   activeClassId={config.activeClassId}
+                  disabled={detectionEnabled}
                   options={configOptions}
                   placement="top"
                   onChange={(id) =>

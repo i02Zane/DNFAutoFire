@@ -13,6 +13,7 @@ export {
   type ClassDetectionResult,
   type CustomConfig,
   type DetectionDebugSnapshot,
+  type DetectionNoMatchPolicy,
   type DetectionSettings,
   type EffectRule,
   type LogLevelSetting,

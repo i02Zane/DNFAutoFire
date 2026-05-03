@@ -8,10 +8,12 @@ use std::path::{Path, PathBuf};
 
 use parking_lot::Mutex;
 
-pub(crate) const CONFIG_VERSION: u32 = 6;
+pub(crate) const CONFIG_VERSION: u32 = 7;
 pub(crate) const DEFAULT_INTERVAL_MS: u16 = 20;
+pub(crate) const DEFAULT_DETECTION_INTERVAL_MS: u64 = 200;
 const MIN_INTERVAL_MS: u16 = 10;
 const MAX_INTERVAL_MS: u16 = 1000;
+const DETECTION_INTERVAL_OPTIONS: [u64; 4] = [100, 200, 500, 1000];
 const MIN_COMBO_HOLD_MS: u16 = 10;
 const MAX_COMBO_HOLD_MS: u16 = 1000;
 const MAX_COMBO_GAP_MS: u16 = 1000;
@@ -121,12 +123,46 @@ pub struct CustomConfig {
     pub combo_defs: Vec<ComboDefinition>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum DetectionNoMatchPolicy {
+    #[default]
+    Current,
+    Global,
+}
+
+impl std::fmt::Display for DetectionNoMatchPolicy {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let value = match self {
+            Self::Current => "current",
+            Self::Global => "global",
+        };
+        formatter.write_str(value)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct DetectionSettings {
+    #[serde(default = "default_detection_enabled")]
     pub enabled: bool,
+    #[serde(default = "default_detection_interval_ms")]
     pub interval_ms: u64,
+    #[serde(default)]
+    pub no_match_policy: DetectionNoMatchPolicy,
+    #[serde(default = "default_detection_icon_database_version")]
     pub icon_database_version: String,
+}
+
+impl Default for DetectionSettings {
+    fn default() -> Self {
+        Self {
+            enabled: default_detection_enabled(),
+            interval_ms: default_detection_interval_ms(),
+            no_match_policy: DetectionNoMatchPolicy::default(),
+            icon_database_version: default_detection_icon_database_version(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -203,9 +239,22 @@ pub struct AppConfig {
     #[serde(default)]
     pub active_class_id: Option<String>,
     pub toggle_hotkey: Option<Hotkey>,
+    #[serde(default)]
     pub detection: DetectionSettings,
     #[serde(default)]
     pub settings: AppSettings,
+}
+
+fn default_detection_enabled() -> bool {
+    false
+}
+
+fn default_detection_interval_ms() -> u64 {
+    DEFAULT_DETECTION_INTERVAL_MS
+}
+
+fn default_detection_icon_database_version() -> String {
+    "builtin-empty-v1".to_string()
 }
 
 pub(crate) struct AppConfigStore {
@@ -332,11 +381,7 @@ fn default_config() -> AppConfig {
             shift: false,
             vk: 0x77,
         }),
-        detection: DetectionSettings {
-            enabled: true,
-            interval_ms: 5000,
-            icon_database_version: "builtin-empty-v1".to_string(),
-        },
+        detection: DetectionSettings::default(),
         settings: AppSettings {
             launch_at_startup: false,
             start_minimized: false,
@@ -416,6 +461,7 @@ pub(crate) fn load_config_from_path(path: &PathBuf) -> AppConfig {
 }
 
 fn normalize_config(config: &mut AppConfig) {
+    let original_version = config.version;
     config.version = CONFIG_VERSION;
     normalize_combos(&mut config.combo_defs, "global");
     for (class_id, class_config) in &mut config.classes {
@@ -424,7 +470,19 @@ fn normalize_config(config: &mut AppConfig) {
     for (config_id, custom_config) in &mut config.custom_configs {
         normalize_combos(&mut custom_config.combo_defs, config_id);
     }
+    normalize_detection_settings(config, original_version);
     normalize_active_profile(config);
+}
+
+fn normalize_detection_settings(config: &mut AppConfig, original_version: u32) {
+    if original_version < CONFIG_VERSION {
+        config.detection.enabled = default_detection_enabled();
+    }
+
+    config.detection.interval_ms = normalize_detection_interval_ms(config.detection.interval_ms);
+    if config.detection.icon_database_version.trim().is_empty() {
+        config.detection.icon_database_version = default_detection_icon_database_version();
+    }
 }
 
 fn normalize_combos(combos: &mut [ComboDefinition], owner_id: &str) {
@@ -519,6 +577,7 @@ fn is_legacy_profile_candidate(path: &Path) -> bool {
 
 pub(crate) fn validate_config(config: &AppConfig) -> Result<(), String> {
     validate_keys(&config.global_keys)?;
+    validate_detection_settings(&config.detection)?;
     for class_config in config.classes.values() {
         validate_keys(&class_config.enabled_keys)?;
         let effective_keys = effective_keys_for_profile(
@@ -541,6 +600,36 @@ pub(crate) fn validate_config(config: &AppConfig) -> Result<(), String> {
         validate_combo_defs(&custom_config.combo_defs, &effective_keys)?;
     }
     Ok(())
+}
+
+pub(crate) fn validate_detection_settings(settings: &DetectionSettings) -> Result<(), String> {
+    validate_detection_interval_ms(settings.interval_ms)
+}
+
+pub(crate) fn validate_detection_interval_ms(interval_ms: u64) -> Result<(), String> {
+    if is_supported_detection_interval(interval_ms) {
+        return Ok(());
+    }
+
+    Err(format!(
+        "职业识别间隔只能是 {} / {} / {} / {} 毫秒",
+        DETECTION_INTERVAL_OPTIONS[0],
+        DETECTION_INTERVAL_OPTIONS[1],
+        DETECTION_INTERVAL_OPTIONS[2],
+        DETECTION_INTERVAL_OPTIONS[3]
+    ))
+}
+
+pub(crate) fn normalize_detection_interval_ms(value: u64) -> u64 {
+    if is_supported_detection_interval(value) {
+        value
+    } else {
+        DEFAULT_DETECTION_INTERVAL_MS
+    }
+}
+
+fn is_supported_detection_interval(value: u64) -> bool {
+    DETECTION_INTERVAL_OPTIONS.contains(&value)
 }
 
 pub(crate) fn validate_keys(keys: &[KeyBinding]) -> Result<(), String> {
@@ -702,8 +791,8 @@ mod tests {
     use super::{
         is_legacy_profile_candidate, load_config_from_path, read_log_level_setting,
         validate_config, validate_runtime_profile, AppConfig, AppConfigStore, AppSettings,
-        ComboAction, ComboDefinition, CustomConfig, DetectionSettings, EffectRule, KeyBinding,
-        LogLevelSetting, CONFIG_VERSION,
+        ComboAction, ComboDefinition, CustomConfig, DetectionNoMatchPolicy, DetectionSettings,
+        EffectRule, KeyBinding, LogLevelSetting, CONFIG_VERSION, DEFAULT_DETECTION_INTERVAL_MS,
     };
     use std::collections::BTreeMap;
     use std::fs;
@@ -823,6 +912,48 @@ mod tests {
         assert!(config.hidden_class_ids.is_empty());
 
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn load_config_normalizes_legacy_detection_settings() {
+        let dir = unique_temp_dir("legacy-detection-settings");
+        fs::write(
+            dir.join("app-config.json"),
+            r#"{
+                "version":6,
+                "globalKeys":[],
+                "comboDefs":[],
+                "classes":{},
+                "activeClassId":null,
+                "toggleHotkey":null,
+                "detection":{"enabled":true,"intervalMs":5000,"iconDatabaseVersion":""},
+                "settings":{}
+            }"#,
+        )
+        .unwrap();
+
+        let config = load_config_from_path(&dir.join("app-config.json"));
+
+        assert_eq!(config.version, CONFIG_VERSION);
+        assert!(!config.detection.enabled);
+        assert_eq!(config.detection.interval_ms, DEFAULT_DETECTION_INTERVAL_MS);
+        assert_eq!(
+            config.detection.no_match_policy,
+            DetectionNoMatchPolicy::Current
+        );
+        assert_eq!(config.detection.icon_database_version, "builtin-empty-v1");
+
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn validate_config_rejects_invalid_detection_interval() {
+        let mut config = minimal_config();
+        config.detection.interval_ms = 300;
+
+        assert!(validate_config(&config)
+            .unwrap_err()
+            .contains("职业识别间隔只能是"));
     }
 
     #[test]
@@ -1242,11 +1373,7 @@ mod tests {
             hidden_class_ids: Vec::new(),
             active_class_id: None,
             toggle_hotkey: None,
-            detection: DetectionSettings {
-                enabled: true,
-                interval_ms: 5000,
-                icon_database_version: "builtin-empty-v1".to_string(),
-            },
+            detection: DetectionSettings::default(),
             settings: AppSettings::default(),
         }
     }

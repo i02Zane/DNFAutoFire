@@ -2,8 +2,8 @@
 
 use crate::assistant::{AssistantProfile, EMPTY_ASSISTANT_PROFILE_ERROR};
 use crate::config::{
-    validate_keys, validate_runtime_profile, AppConfig, ComboDefinition, Hotkey, KeyBinding,
-    LogLevelSetting,
+    validate_detection_interval_ms, validate_keys, validate_runtime_profile, AppConfig,
+    ComboDefinition, Hotkey, KeyBinding, LogLevelSetting,
 };
 use crate::core::FireKeyConfig;
 use crate::hotkey::{register_windows_hotkey, validate_hotkey};
@@ -159,6 +159,32 @@ pub(crate) fn stop_autofire(state: State<AppState>) -> bool {
     tracing::info!("请求停止连发引擎");
     state.engine.lock().stop();
     true
+}
+
+#[tauri::command]
+pub(crate) fn start_detection(
+    interval_ms: u64,
+    app: tauri::AppHandle,
+    state: State<AppState>,
+) -> Result<bool, String> {
+    tracing::debug!(interval_ms, "请求启动职业识别引擎");
+    validate_detection_interval_ms(interval_ms)?;
+
+    let mut runtime = state.detection_runtime.lock();
+    runtime.start(app, interval_ms)?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub(crate) fn stop_detection(state: State<AppState>) -> bool {
+    tracing::info!("请求停止职业识别引擎");
+    state.detection_runtime.lock().stop();
+    true
+}
+
+#[tauri::command]
+pub(crate) fn is_detection_running(state: State<AppState>) -> bool {
+    state.detection_runtime.lock().is_running()
 }
 
 #[tauri::command]

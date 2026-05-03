@@ -131,7 +131,9 @@ export function FloatingControlView() {
       <main className="flex items-center gap-2 px-2 py-1.5 text-slate-900" data-tauri-drag-region>
         <div className="flex shrink-0 items-center whitespace-nowrap">
           <ConfigSelect
+            key={config.detection.enabled ? "detection-locked" : "detection-unlocked"}
             activeClassId={config.activeClassId}
+            disabled={config.detection.enabled}
             options={configuredConfigOptions(config)}
             compact
             native
