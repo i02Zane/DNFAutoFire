@@ -48,7 +48,7 @@ export function SettingsPage({
   onStartMinimizedChange: (checked: boolean) => void;
 }) {
   return (
-    <main className="min-w-0 flex-1 overflow-auto px-7 py-6">
+    <main className="h-full min-w-0 overflow-y-auto px-7 py-6">
       <section className="max-w-[760px]">
         <div className="flex items-center gap-2">
           <h1 className="text-[22px] font-semibold tracking-tight">设置</h1>
