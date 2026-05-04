@@ -1,3 +1,3 @@
 [env]
-APRILTAG_SYS_WINDOWS_PTHREAD_INCLUDE_DIR = "C:/Users/Administrator/Documents/DNFAutoFire-OpenSource/dnf_detect/third_party/pthreads-win32/include"
-APRILTAG_SYS_WINDOWS_PTHREAD_STATIC_LIB = "C:/Users/Administrator/Documents/DNFAutoFire-OpenSource/dnf_detect/third_party/pthreads-win32/lib/x64/pthreadVC2.lib"
+APRILTAG_SYS_WINDOWS_PTHREAD_INCLUDE_DIR = { value = "src-tauri/resources/pthreads-win32/include", relative = true }
+APRILTAG_SYS_WINDOWS_PTHREAD_STATIC_LIB = { value = "src-tauri/resources/pthreads-win32/lib/x64/pthreadVC2.lib", relative = true }
