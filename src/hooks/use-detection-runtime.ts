@@ -34,8 +34,8 @@ export function useDetectionRuntime({
             return;
           }
 
-          // 只在 DNF 仍处于前台时处理识别失败；切到别的软件只是暂停识别结果，不改 activeClassId。
-          if (reason === "foregroundInactive") {
+          // 切到别的软件或进入副本时只是暂停识别结果，不改 activeClassId。
+          if (reason === "foregroundInactive" || reason === "notInTown") {
             return;
           }
 
