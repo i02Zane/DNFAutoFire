@@ -57,40 +57,47 @@ export function SettingsPage({
           <p>程序级设置。</p>
         </div>
 
-        <div className="mt-6 overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
-          <SettingsSwitch
-            checked={launchAtStartup}
-            description={`打开 Windows 后自动启动 ${APP_DISPLAY_NAME}。`}
-            label="开机时启动"
-            onChange={onLaunchAtStartupChange}
-          />
-          <SettingsSwitch
-            checked={startMinimized}
-            description="启动应用后收起到最小化状态。"
-            label="启动时最小化"
-            onChange={onStartMinimizedChange}
-          />
-          <SettingsSwitch
-            checked={minimizeToTray}
-            description="开启后，最小化按钮会隐藏主窗口到系统托盘；启动时最小化也会按这个方式处理。"
-            label="最小化到托盘"
-            onChange={onMinimizeToTrayChange}
-          />
-          <SettingsSwitch
-            checked={openFloatingControlOnStart}
-            description="进入应用后自动显示助手悬浮窗。"
-            label="启动时自动打开悬浮窗"
-            onChange={onOpenFloatingControlOnStartChange}
-          />
+        <div className="mt-6">
+          <div className="mb-2 text-sm font-semibold text-slate-700">启动选项</div>
+          <div className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
+            <SettingsSwitch
+              checked={launchAtStartup}
+              description={`打开 Windows 后自动启动 ${APP_DISPLAY_NAME}。`}
+              label="开机时启动"
+              onChange={onLaunchAtStartupChange}
+            />
+            <SettingsSwitch
+              checked={startMinimized}
+              description="启动应用后收起到最小化状态。"
+              label="启动时最小化"
+              onChange={onStartMinimizedChange}
+            />
+            <SettingsSwitch
+              checked={minimizeToTray}
+              description="开启后，最小化按钮会隐藏主窗口到系统托盘；启动时最小化也会按这个方式处理。"
+              label="最小化到托盘"
+              onChange={onMinimizeToTrayChange}
+            />
+            <SettingsSwitch
+              checked={openFloatingControlOnStart}
+              description="进入应用后自动显示助手悬浮窗。"
+              label="启动时自动打开悬浮窗"
+              onChange={onOpenFloatingControlOnStartChange}
+            />
+          </div>
         </div>
-        <div className="mt-6 overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
-          <SettingsSelect
-            description="控制日志输出等级"
-            label="日志等级"
-            options={LOG_LEVEL_OPTIONS}
-            value={logLevel}
-            onChange={(value) => onLogLevelChange(value as LogLevelSetting)}
-          />
+
+        <div className="mt-6">
+          <div className="mb-2 text-sm font-semibold text-slate-700">日志</div>
+          <div className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
+            <SettingsSelect
+              description="控制日志输出等级"
+              label="日志等级"
+              options={LOG_LEVEL_OPTIONS}
+              value={logLevel}
+              onChange={(value) => onLogLevelChange(value as LogLevelSetting)}
+            />
+          </div>
         </div>
 
         <div className="mt-6">
