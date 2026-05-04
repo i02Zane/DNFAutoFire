@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.4] - 2026-05-04
+- 新增职业自动识别功能
+
 ## [0.3.3] - 2026-05-02
 - 修复系统文本大小不为100%时界面异常的问题
 - 修复连发键位过多时，影响底栏和连发配置栏的问题
