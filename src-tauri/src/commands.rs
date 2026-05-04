@@ -12,6 +12,7 @@ use crate::notify::show_error_message_box;
 use crate::startup::set_windows_launch_at_startup;
 use crate::state::AppState;
 use crate::tray::update_tray_current_config_item;
+use tauri::Emitter;
 use tauri::State;
 
 const EMPTY_AUTOFIRE_KEYS_ERROR: &str = "请至少配置一个连发按键";
@@ -171,14 +172,17 @@ pub(crate) fn start_detection(
     validate_detection_interval_ms(interval_ms)?;
 
     let mut runtime = state.detection_runtime.lock();
-    runtime.start(app, interval_ms)?;
+    runtime.start(app.clone(), interval_ms)?;
+    drop(runtime);
+    emit_detection_running_changed(&app, true);
     Ok(true)
 }
 
 #[tauri::command]
-pub(crate) fn stop_detection(state: State<AppState>) -> bool {
+pub(crate) fn stop_detection(app: tauri::AppHandle, state: State<AppState>) -> bool {
     tracing::info!("请求停止职业识别引擎");
     state.detection_runtime.lock().stop();
+    emit_detection_running_changed(&app, false);
     true
 }
 
@@ -339,4 +343,10 @@ pub(crate) fn set_launch_at_startup(enabled: bool) -> Result<bool, String> {
     }
 
     Ok(true)
+}
+
+fn emit_detection_running_changed(app: &tauri::AppHandle, running: bool) {
+    if let Err(error) = app.emit(crate::DETECTION_RUNNING_CHANGED_EVENT, running) {
+        tracing::warn!(error = %error, running, "发送职业识别运行状态事件失败");
+    }
 }

@@ -26,6 +26,7 @@ pub(crate) const FLOATING_CONTROL_TOGGLE_REQUEST_EVENT: &str = "floating-control
 pub(crate) const FLOATING_CONTROL_VISIBILITY_EVENT: &str = "floating-control:visibility-changed";
 pub(crate) const FLOATING_CONTROL_WINDOW_LABEL: &str = "floating-control";
 pub(crate) const CLASS_DETECTION_RESULT_EVENT: &str = "class-detection:result";
+pub(crate) const DETECTION_RUNNING_CHANGED_EVENT: &str = "class-detection:running-changed";
 pub(crate) const APP_NAME: &str = "DNF按键助手";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

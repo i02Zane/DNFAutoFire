@@ -18,16 +18,20 @@ import { type AppConfig, isMockMode, tauriCommands } from "../lib/tauri";
 export function FloatingControlView() {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [running, setRunning] = useState(false);
+  const [detectionRunning, setDetectionRunning] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     // 悬浮控制可能晚于主窗口创建，先主动拉一次真实状态，再接入事件广播。
-    void Promise.all([tauriCommands.loadAppConfig(), tauriCommands.isAssistantRunning()]).then(
-      ([nextConfig, isRunning]) => {
-        setConfig(nextConfig);
-        setRunning(isRunning);
-      },
-    );
+    void Promise.all([
+      tauriCommands.loadAppConfig(),
+      tauriCommands.isAssistantRunning(),
+      tauriCommands.isDetectionRunning(),
+    ]).then(([nextConfig, isRunning, isDetectionRunning]) => {
+      setConfig(nextConfig);
+      setRunning(isRunning);
+      setDetectionRunning(isDetectionRunning);
+    });
   }, []);
 
   useEffect(() => {
@@ -37,10 +41,14 @@ export function FloatingControlView() {
     let disposed = false;
     let unlisten: (() => void) | undefined;
     const listenFloatingControlUpdate = async () => {
-      unlisten = await listenAppEvent(APP_EVENTS.floatingControlUpdate, ({ config, running }) => {
-        setConfig(config);
-        setRunning(running);
-      });
+      unlisten = await listenAppEvent(
+        APP_EVENTS.floatingControlUpdate,
+        ({ config, detectionRunning, running }) => {
+          setConfig(config);
+          setDetectionRunning(detectionRunning);
+          setRunning(running);
+        },
+      );
       if (disposed) unlisten();
     };
 
@@ -144,9 +152,9 @@ export function FloatingControlView() {
       <main className="flex items-center gap-2 px-2 py-1.5 text-slate-900" data-tauri-drag-region>
         <div className="flex shrink-0 items-center whitespace-nowrap">
           <ConfigSelect
-            key={config.detection.enabled ? "detection-locked" : "detection-unlocked"}
+            key={detectionRunning ? "detection-locked" : "detection-unlocked"}
             activeClassId={config.activeClassId}
-            disabled={config.detection.enabled}
+            disabled={detectionRunning}
             options={configuredConfigOptions(config)}
             compact
             native

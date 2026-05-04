@@ -5,6 +5,7 @@ import type { ConfigUpdater } from "./use-app-config";
 
 type UseFloatingControlSyncOptions = {
   config: AppConfig;
+  detectionRunning: boolean;
   floatingControlEnabled: boolean;
   running: boolean;
   setFloatingControlEnabled: (floatingControlEnabled: boolean) => void;
@@ -16,6 +17,7 @@ type UseFloatingControlSyncOptions = {
 
 export function useFloatingControlSync({
   config,
+  detectionRunning,
   floatingControlEnabled,
   running,
   setFloatingControlEnabled,
@@ -54,12 +56,13 @@ export function useFloatingControlSync({
     const emitFloatingControlUpdate = async () => {
       await emitAppEvent(APP_EVENTS.floatingControlUpdate, {
         config,
+        detectionRunning,
         running,
       });
     };
 
     void emitFloatingControlUpdate().catch(() => undefined);
-  }, [config, floatingControlEnabled, running]);
+  }, [config, detectionRunning, floatingControlEnabled, running]);
 
   useEffect(() => {
     if (isMockMode()) return;

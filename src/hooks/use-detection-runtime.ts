@@ -1,4 +1,4 @@
-import { useEffect, type MutableRefObject } from "react";
+import { useEffect, useRef, type MutableRefObject } from "react";
 import { getClassIdByDetectionIndex } from "../data/classes";
 import { APP_EVENTS, listenAppEvent } from "../lib/app-events";
 import { isMockMode, tauriCommands, type AppConfig } from "../lib/tauri";
@@ -7,6 +7,8 @@ import type { ConfigUpdater } from "./use-app-config";
 type UseDetectionRuntimeOptions = {
   config: AppConfig;
   configRef: MutableRefObject<AppConfig>;
+  detectionRunning: boolean;
+  setDetectionRunning: (running: boolean) => void;
   showMessage: (message: string) => void;
   startupConfigLoaded: boolean;
   updateConfig: (updater: ConfigUpdater) => Promise<AppConfig | null>;
@@ -15,12 +17,20 @@ type UseDetectionRuntimeOptions = {
 export function useDetectionRuntime({
   config,
   configRef,
+  detectionRunning,
+  setDetectionRunning,
   showMessage,
   startupConfigLoaded,
   updateConfig,
 }: UseDetectionRuntimeOptions) {
+  const detectionRunningRef = useRef(detectionRunning);
+
   useEffect(() => {
-    if (isMockMode() || !startupConfigLoaded || !config.detection.enabled) return;
+    detectionRunningRef.current = detectionRunning;
+  }, [detectionRunning]);
+
+  useEffect(() => {
+    if (isMockMode() || !startupConfigLoaded) return;
 
     // 识别结果只在自动识别开启时写回 activeClassId，关闭后保留最后一次结果。
     let disposed = false;
@@ -29,13 +39,18 @@ export function useDetectionRuntime({
       unlisten = await listenAppEvent(
         APP_EVENTS.classDetectionResult,
         ({ classIndex, reason }) => {
-          const currentConfig = configRef.current;
-          if (!currentConfig.detection.enabled) {
+          if (!detectionRunningRef.current) {
             return;
           }
 
-          // 切到别的软件或进入副本时只是暂停识别结果，不改 activeClassId。
-          if (reason === "foregroundInactive" || reason === "notInTown") {
+          const currentConfig = configRef.current;
+
+          // 切到别的软件、进入副本或采集失败时只是暂停识别结果，不改 activeClassId。
+          if (
+            reason === "foregroundInactive" ||
+            reason === "notInTown" ||
+            reason === "captureError"
+          ) {
             return;
           }
 
@@ -75,7 +90,28 @@ export function useDetectionRuntime({
       disposed = true;
       unlisten?.();
     };
-  }, [config.detection.enabled, startupConfigLoaded, updateConfig, configRef]);
+  }, [startupConfigLoaded, updateConfig, configRef]);
+
+  useEffect(() => {
+    if (isMockMode() || !startupConfigLoaded) return;
+
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    const listenDetectionRunning = async () => {
+      unlisten = await listenAppEvent(APP_EVENTS.detectionRunningChanged, (running) => {
+        setDetectionRunning(running);
+      });
+      if (disposed) {
+        unlisten();
+      }
+    };
+
+    void listenDetectionRunning().catch(() => undefined);
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [setDetectionRunning, startupConfigLoaded]);
 
   useEffect(() => {
     if (isMockMode() || !startupConfigLoaded) return;

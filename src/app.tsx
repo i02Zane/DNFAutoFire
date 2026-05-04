@@ -68,6 +68,7 @@ import type { EditTarget, Page } from "./types/ui";
 
 type RuntimeState = {
   running: boolean;
+  detectionRunning: boolean;
 };
 type UiState = {
   page: Page;
@@ -89,7 +90,10 @@ function App() {
 }
 
 function MainApp() {
-  const [runtimeState, setRuntimeState] = useState<RuntimeState>({ running: false });
+  const [runtimeState, setRuntimeState] = useState<RuntimeState>({
+    running: false,
+    detectionRunning: false,
+  });
   const [autofireClassSearch, setAutofireClassSearch] = useState("");
   const [uiState, setUiState] = useState<UiState>({
     page: "autofire",
@@ -101,9 +105,17 @@ function MainApp() {
   });
   // 状态分层：config 是持久配置，runtimeState 是运行状态，uiState 只保存临时界面状态。
   const running = runtimeState.running;
+  const detectionRunning = runtimeState.detectionRunning;
   const { comboClassId, floatingControlEnabled, message, page, recordingHotkey, target } = uiState;
   const setRunning = useCallback((nextRunning: boolean) => {
-    setRuntimeState({ running: nextRunning });
+    setRuntimeState((current) => ({ ...current, running: nextRunning }));
+  }, []);
+
+  const setDetectionRunning = useCallback((nextDetectionRunning: boolean) => {
+    setRuntimeState((current) => ({
+      ...current,
+      detectionRunning: nextDetectionRunning,
+    }));
   }, []);
 
   const setPage = useCallback((nextPage: Page) => {
@@ -145,15 +157,24 @@ function MainApp() {
   }, []);
 
   const handleStartupLoaded = useCallback(
-    ({ config: nextConfig, running: isRunning }: { config: AppConfig; running: boolean }) => {
+    ({
+      config: nextConfig,
+      running: isRunning,
+      detectionRunning: isDetectionRunning,
+    }: {
+      config: AppConfig;
+      running: boolean;
+      detectionRunning: boolean;
+    }) => {
       setRunning(isRunning);
+      setDetectionRunning(isDetectionRunning);
       setFloatingControlEnabled(nextConfig.settings.openFloatingControlOnStart);
       // 卸载保留用户数据后，重装首次启动要按配置重新同步 Windows Run 项。
       void tauriCommands.setLaunchAtStartup(nextConfig.settings.launchAtStartup).catch((reason) => {
         showMessage(reason instanceof Error ? reason.message : String(reason));
       });
     },
-    [setFloatingControlEnabled, setRunning, showMessage],
+    [setDetectionRunning, setFloatingControlEnabled, setRunning, showMessage],
   );
 
   // 配置的加载、保存和回滚都封装在 hook 里；这里仅消费最新快照。
@@ -238,6 +259,8 @@ function MainApp() {
   useDetectionRuntime({
     config,
     configRef,
+    detectionRunning,
+    setDetectionRunning,
     showMessage,
     startupConfigLoaded,
     updateConfig,
@@ -246,6 +269,7 @@ function MainApp() {
   // 悬浮控制与主窗口双向同步，但真正的配置落盘仍只发生在主窗口。
   useFloatingControlSync({
     config,
+    detectionRunning,
     floatingControlEnabled,
     running,
     setFloatingControlEnabled,
@@ -803,9 +827,9 @@ function MainApp() {
                 <span className="h-2 w-2 rounded-full bg-amber-400" />
                 <span className="text-sm font-medium text-slate-700">配置</span>
                 <ConfigSelect
-                  key={detectionEnabled ? "detection-locked" : "detection-unlocked"}
+                  key={detectionRunning ? "detection-locked" : "detection-unlocked"}
                   activeClassId={config.activeClassId}
-                  disabled={detectionEnabled}
+                  disabled={detectionRunning}
                   options={configOptions}
                   placement="top"
                   onChange={(id) =>
