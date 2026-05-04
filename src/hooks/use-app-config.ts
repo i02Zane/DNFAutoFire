@@ -7,6 +7,7 @@ export type ConfigUpdater = AppConfig | ((currentConfig: AppConfig) => AppConfig
 type StartupState = {
   config: AppConfig;
   running: boolean;
+  detectionRunning: boolean;
 };
 
 type UseAppConfigOptions = {
@@ -67,14 +68,16 @@ export function useAppConfig({ onSaveError, onStartupLoaded }: UseAppConfigOptio
 
   useEffect(() => {
     // 首屏加载时同时恢复持久配置和后端运行状态，避免按钮状态与引擎状态短暂不一致。
-    void Promise.all([tauriCommands.loadAppConfig(), tauriCommands.isAssistantRunning()]).then(
-      ([nextConfig, isRunning]) => {
+    void Promise.all([
+      tauriCommands.loadAppConfig(),
+      tauriCommands.isAssistantRunning(),
+      tauriCommands.isDetectionRunning(),
+    ]).then(([nextConfig, isRunning, detectionRunning]) => {
         lastSavedConfigRef.current = nextConfig;
         applyConfig(nextConfig);
-        onStartupLoaded({ config: nextConfig, running: isRunning });
+        onStartupLoaded({ config: nextConfig, running: isRunning, detectionRunning });
         setStartupConfigLoaded(true);
-      },
-    );
+      });
   }, [applyConfig, onStartupLoaded]);
 
   const updateSettings = useCallback(

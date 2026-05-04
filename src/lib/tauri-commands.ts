@@ -35,6 +35,9 @@ export const tauriCommands = {
   isAssistantRunning: () => invokeCommand<boolean>("is_assistant_running"),
   startAutofire: (keys: KeyBinding[]) => invokeCommand<boolean>("start_autofire", { keys }),
   stopAutofire: () => invokeCommand<boolean>("stop_autofire"),
+  startDetection: (intervalMs: number) => invokeCommand<boolean>("start_detection", { intervalMs }),
+  stopDetection: () => invokeCommand<boolean>("stop_detection"),
+  isDetectionRunning: () => invokeCommand<boolean>("is_detection_running"),
   isRunning: () => invokeCommand<boolean>("is_running"),
   registerToggleHotkey: (hotkey: Hotkey | null) =>
     invokeCommand<boolean>("register_toggle_hotkey", { hotkey }),

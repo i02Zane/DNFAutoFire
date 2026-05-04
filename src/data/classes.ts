@@ -161,12 +161,20 @@ export const classCategories: ClassCategory[] = [
   },
 ];
 
+export const flatClassInfos: ClassInfo[] = classCategories.flatMap((category) => category.classes);
+
 export function getClassName(classId: string): string {
   return getClassInfo(classId)?.name ?? "未知职业";
 }
 
 export function getClassInfo(classId: string): ClassInfo | undefined {
-  return classCategories
-    .flatMap((category) => category.classes)
-    .find((classInfo) => classInfo.id === classId);
+  return flatClassInfos.find((classInfo) => classInfo.id === classId);
+}
+
+export function getClassIdByDetectionIndex(classIndex: number): string | null {
+  return flatClassInfos[classIndex]?.id ?? null;
+}
+
+export function getDetectionIndexByClassId(classId: string): number {
+  return flatClassInfos.findIndex((classInfo) => classInfo.id === classId);
 }

@@ -1,0 +1,3 @@
+[env]
+APRILTAG_SYS_WINDOWS_PTHREAD_INCLUDE_DIR = "C:/Users/Administrator/Documents/DNFAutoFire-OpenSource/dnf_detect/third_party/pthreads-win32/include"
+APRILTAG_SYS_WINDOWS_PTHREAD_STATIC_LIB = "C:/Users/Administrator/Documents/DNFAutoFire-OpenSource/dnf_detect/third_party/pthreads-win32/lib/x64/pthreadVC2.lib"

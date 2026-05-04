@@ -53,6 +53,9 @@
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
       }
+    },
+    "resources": {
+      "resources/pthreadVC2.dll": "pthreadVC2.dll"
     }
   }
 }

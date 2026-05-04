@@ -54,6 +54,14 @@ export type ComboValidationIssue = {
 // 职业配置与全局配置的合并策略。
 export type EffectRule = "globalAndClass" | "classOnly";
 
+export type DetectionNoMatchPolicy = "current" | "global";
+
+export type ClassDetectionResult = {
+  classIndex: number | null;
+  confidence: number;
+  reason: string;
+};
+
 // 职业配置是预设 id/name 且不可删除的配置，功能形状与自定义配置保持一致。
 export type ClassConfig = {
   enabledKeys: KeyBinding[];
@@ -70,6 +78,7 @@ export type DetectionSettings = {
   // 职业识别结构目前保留，后续恢复识别能力时继续沿用这组字段。
   enabled: boolean;
   intervalMs: number;
+  noMatchPolicy: DetectionNoMatchPolicy;
   iconDatabaseVersion: string;
 };
 
@@ -88,12 +97,6 @@ export type Hotkey = {
   alt: boolean;
   shift: boolean;
   vk: number;
-};
-
-export type ClassDetectionResult = {
-  classId: string | null;
-  confidence: number;
-  reason: string;
 };
 
 export type ImageRect = {

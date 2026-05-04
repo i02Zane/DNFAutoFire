@@ -12,10 +12,11 @@ mod state;
 mod tray;
 
 use commands::{
-    is_assistant_running, is_elevated, is_running, load_app_config, register_toggle_hotkey,
-    restart_as_admin, save_app_config, set_launch_at_startup, set_log_level, set_runtime_keys,
-    set_runtime_profile, show_error_message, start_assistant, start_autofire, stop_assistant,
-    stop_autofire, update_tray_current_config,
+    is_assistant_running, is_detection_running, is_elevated, is_running, load_app_config,
+    register_toggle_hotkey, restart_as_admin, save_app_config, set_launch_at_startup,
+    set_log_level, set_runtime_keys, set_runtime_profile, show_error_message, start_assistant,
+    start_autofire, start_detection, stop_assistant, stop_autofire, stop_detection,
+    update_tray_current_config,
 };
 use state::AppState;
 use tauri::Manager;
@@ -24,6 +25,8 @@ use tray::create_tray_icon;
 pub(crate) const FLOATING_CONTROL_TOGGLE_REQUEST_EVENT: &str = "floating-control:toggle-request";
 pub(crate) const FLOATING_CONTROL_VISIBILITY_EVENT: &str = "floating-control:visibility-changed";
 pub(crate) const FLOATING_CONTROL_WINDOW_LABEL: &str = "floating-control";
+pub(crate) const CLASS_DETECTION_RESULT_EVENT: &str = "class-detection:result";
+pub(crate) const DETECTION_RUNNING_CHANGED_EVENT: &str = "class-detection:running-changed";
 pub(crate) const APP_NAME: &str = "DNF按键助手";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -98,6 +101,9 @@ pub fn run() {
             is_assistant_running,
             start_autofire,
             stop_autofire,
+            start_detection,
+            stop_detection,
+            is_detection_running,
             is_running,
             update_tray_current_config,
             register_toggle_hotkey,

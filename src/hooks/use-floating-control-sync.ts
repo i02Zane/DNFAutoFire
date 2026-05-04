@@ -5,6 +5,7 @@ import type { ConfigUpdater } from "./use-app-config";
 
 type UseFloatingControlSyncOptions = {
   config: AppConfig;
+  detectionRunning: boolean;
   floatingControlEnabled: boolean;
   running: boolean;
   setFloatingControlEnabled: (floatingControlEnabled: boolean) => void;
@@ -16,6 +17,7 @@ type UseFloatingControlSyncOptions = {
 
 export function useFloatingControlSync({
   config,
+  detectionRunning,
   floatingControlEnabled,
   running,
   setFloatingControlEnabled,
@@ -54,12 +56,13 @@ export function useFloatingControlSync({
     const emitFloatingControlUpdate = async () => {
       await emitAppEvent(APP_EVENTS.floatingControlUpdate, {
         config,
+        detectionRunning,
         running,
       });
     };
 
     void emitFloatingControlUpdate().catch(() => undefined);
-  }, [config, floatingControlEnabled, running]);
+  }, [config, detectionRunning, floatingControlEnabled, running]);
 
   useEffect(() => {
     if (isMockMode()) return;
@@ -77,6 +80,31 @@ export function useFloatingControlSync({
       if (disposed) unlisten();
     };
     void listenClassChange().catch(() => undefined);
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [updateConfig]);
+
+  useEffect(() => {
+    if (isMockMode()) return;
+
+    // 自动/手动识别切换也由主窗口落盘；悬浮窗只发起请求，避免多窗口各自保存配置。
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    const listenDetectionModeToggle = async () => {
+      unlisten = await listenAppEvent(APP_EVENTS.floatingControlDetectionModeToggleRequest, () => {
+        void updateConfig((currentConfig) => ({
+          ...currentConfig,
+          detection: {
+            ...currentConfig.detection,
+            enabled: !currentConfig.detection.enabled,
+          },
+        }));
+      });
+      if (disposed) unlisten();
+    };
+    void listenDetectionModeToggle().catch(() => undefined);
     return () => {
       disposed = true;
       unlisten?.();

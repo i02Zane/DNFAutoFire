@@ -26,6 +26,7 @@ import { classCategories } from "./data/classes";
 import { FloatingControlView } from "./floating-control/floating-control-view";
 import { useAppConfig } from "./hooks/use-app-config";
 import { useAssistantRuntime } from "./hooks/use-assistant-runtime";
+import { useDetectionRuntime } from "./hooks/use-detection-runtime";
 import { useFloatingControlSync } from "./hooks/use-floating-control-sync";
 import { useHotkeyRecorder } from "./hooks/use-hotkey-recorder";
 import {
@@ -42,6 +43,7 @@ import {
   hasDuplicateKeys,
   isClassVisible,
   isCustomConfigId,
+  normalizeDetectionIntervalMs,
   validateClassComboDefs,
 } from "./lib/config";
 import { FLOATING_CONTROL_VIEW } from "./lib/floating-control";
@@ -51,6 +53,7 @@ import {
   type AppConfig,
   ComboDefinition,
   EffectRule,
+  type DetectionNoMatchPolicy,
   KeyBinding,
   LogLevelSetting,
   hotkeyDisplay,
@@ -65,6 +68,7 @@ import type { EditTarget, Page } from "./types/ui";
 
 type RuntimeState = {
   running: boolean;
+  detectionRunning: boolean;
 };
 type UiState = {
   page: Page;
@@ -86,7 +90,10 @@ function App() {
 }
 
 function MainApp() {
-  const [runtimeState, setRuntimeState] = useState<RuntimeState>({ running: false });
+  const [runtimeState, setRuntimeState] = useState<RuntimeState>({
+    running: false,
+    detectionRunning: false,
+  });
   const [autofireClassSearch, setAutofireClassSearch] = useState("");
   const [uiState, setUiState] = useState<UiState>({
     page: "autofire",
@@ -98,9 +105,17 @@ function MainApp() {
   });
   // 状态分层：config 是持久配置，runtimeState 是运行状态，uiState 只保存临时界面状态。
   const running = runtimeState.running;
+  const detectionRunning = runtimeState.detectionRunning;
   const { comboClassId, floatingControlEnabled, message, page, recordingHotkey, target } = uiState;
   const setRunning = useCallback((nextRunning: boolean) => {
-    setRuntimeState({ running: nextRunning });
+    setRuntimeState((current) => ({ ...current, running: nextRunning }));
+  }, []);
+
+  const setDetectionRunning = useCallback((nextDetectionRunning: boolean) => {
+    setRuntimeState((current) => ({
+      ...current,
+      detectionRunning: nextDetectionRunning,
+    }));
   }, []);
 
   const setPage = useCallback((nextPage: Page) => {
@@ -142,15 +157,24 @@ function MainApp() {
   }, []);
 
   const handleStartupLoaded = useCallback(
-    ({ config: nextConfig, running: isRunning }: { config: AppConfig; running: boolean }) => {
+    ({
+      config: nextConfig,
+      running: isRunning,
+      detectionRunning: isDetectionRunning,
+    }: {
+      config: AppConfig;
+      running: boolean;
+      detectionRunning: boolean;
+    }) => {
       setRunning(isRunning);
+      setDetectionRunning(isDetectionRunning);
       setFloatingControlEnabled(nextConfig.settings.openFloatingControlOnStart);
       // 卸载保留用户数据后，重装首次启动要按配置重新同步 Windows Run 项。
       void tauriCommands.setLaunchAtStartup(nextConfig.settings.launchAtStartup).catch((reason) => {
         showMessage(reason instanceof Error ? reason.message : String(reason));
       });
     },
-    [setFloatingControlEnabled, setRunning, showMessage],
+    [setDetectionRunning, setFloatingControlEnabled, setRunning, showMessage],
   );
 
   // 配置的加载、保存和回滚都封装在 hook 里；这里仅消费最新快照。
@@ -161,6 +185,11 @@ function MainApp() {
   const { launchAtStartup, minimizeToTray, openFloatingControlOnStart, startMinimized } =
     config.settings;
   const { logLevel } = config.settings;
+  const {
+    enabled: detectionEnabled,
+    intervalMs: detectionIntervalMs,
+    noMatchPolicy,
+  } = config.detection;
 
   // 快捷键录制要短暂接管全局键盘输入，单独拆出去避免污染页面交互逻辑。
   useHotkeyRecorder({
@@ -227,9 +256,20 @@ function MainApp() {
     toggleHotkey: config.toggleHotkey,
   });
 
+  useDetectionRuntime({
+    config,
+    configRef,
+    detectionRunning,
+    setDetectionRunning,
+    showMessage,
+    startupConfigLoaded,
+    updateConfig,
+  });
+
   // 悬浮控制与主窗口双向同步，但真正的配置落盘仍只发生在主窗口。
   useFloatingControlSync({
     config,
+    detectionRunning,
     floatingControlEnabled,
     running,
     setFloatingControlEnabled,
@@ -365,6 +405,36 @@ function MainApp() {
 
   function updateOpenFloatingControlOnStart(checked: boolean) {
     updateSettings({ openFloatingControlOnStart: checked });
+  }
+
+  function updateDetectionEnabled(checked: boolean) {
+    void updateConfig((currentConfig) => ({
+      ...currentConfig,
+      detection: {
+        ...currentConfig.detection,
+        enabled: checked,
+      },
+    }));
+  }
+
+  function updateDetectionInterval(intervalMs: number) {
+    void updateConfig((currentConfig) => ({
+      ...currentConfig,
+      detection: {
+        ...currentConfig.detection,
+        intervalMs: normalizeDetectionIntervalMs(intervalMs),
+      },
+    }));
+  }
+
+  function updateDetectionNoMatchPolicy(policy: DetectionNoMatchPolicy) {
+    void updateConfig((currentConfig) => ({
+      ...currentConfig,
+      detection: {
+        ...currentConfig.detection,
+        noMatchPolicy: policy,
+      },
+    }));
   }
 
   function updateStartMinimized(checked: boolean) {
@@ -729,11 +799,17 @@ function MainApp() {
               />
             ) : page === "settings" ? (
               <SettingsPage
+                detectionEnabled={detectionEnabled}
+                detectionIntervalMs={detectionIntervalMs}
+                detectionNoMatchPolicy={noMatchPolicy}
                 launchAtStartup={launchAtStartup}
                 logLevel={logLevel}
                 minimizeToTray={minimizeToTray}
                 openFloatingControlOnStart={openFloatingControlOnStart}
                 startMinimized={startMinimized}
+                onDetectionEnabledChange={updateDetectionEnabled}
+                onDetectionIntervalChange={updateDetectionInterval}
+                onDetectionNoMatchPolicyChange={updateDetectionNoMatchPolicy}
                 onLaunchAtStartupChange={(checked) => void updateLaunchAtStartup(checked)}
                 onLogLevelChange={updateLogLevel}
                 onMinimizeToTrayChange={updateMinimizeToTray}
@@ -751,7 +827,9 @@ function MainApp() {
                 <span className="h-2 w-2 rounded-full bg-amber-400" />
                 <span className="text-sm font-medium text-slate-700">配置</span>
                 <ConfigSelect
+                  key={detectionRunning ? "detection-locked" : "detection-unlocked"}
                   activeClassId={config.activeClassId}
+                  disabled={detectionRunning}
                   options={configOptions}
                   placement="top"
                   onChange={(id) =>

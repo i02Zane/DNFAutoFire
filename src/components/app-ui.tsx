@@ -197,6 +197,7 @@ export function ConfigSelect({
   activeClassId,
   options: configOptions,
   compact = false,
+  disabled = false,
   placement = "bottom",
   native = false,
   onChange,
@@ -204,6 +205,7 @@ export function ConfigSelect({
   activeClassId: string | null;
   options: ConfigOption[];
   compact?: boolean;
+  disabled?: boolean;
   placement?: "top" | "bottom";
   native?: boolean;
   onChange: (classId: string | null) => void;
@@ -225,7 +227,7 @@ export function ConfigSelect({
 
   function setMenuOpen(nextOpen: boolean) {
     // 只有全局配置时不展开菜单，减少无意义的弹层状态。
-    const actualOpen = hasChoices && nextOpen;
+    const actualOpen = !disabled && hasChoices && nextOpen;
     setOpen(actualOpen);
   }
 
@@ -243,6 +245,7 @@ export function ConfigSelect({
   }, [open]);
 
   function selectOption(classId: string | null) {
+    if (disabled) return;
     onChange(classId);
     setOpen(false);
   }
@@ -252,9 +255,13 @@ export function ConfigSelect({
       <span className="relative inline-flex shrink-0 items-center">
         <select
           aria-label="选择配置"
-          className={`${nativeSelectClass} appearance-none border border-slate-200 bg-slate-50/80 text-slate-700 outline-none focus:border-blue-400 focus:bg-white focus:ring-1 focus:ring-blue-100`}
+          className={`${nativeSelectClass} appearance-none border border-slate-200 bg-slate-50/80 text-slate-700 outline-none focus:border-blue-400 focus:bg-white focus:ring-1 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
+          disabled={disabled}
           value={activeClassId ?? ""}
-          onChange={(event) => onChange(event.target.value || null)}
+          onChange={(event) => {
+            if (disabled) return;
+            onChange(event.target.value || null);
+          }}
         >
           {options.map((option) => (
             <option key={option.id ?? "global"} value={option.id ?? ""}>
@@ -280,7 +287,8 @@ export function ConfigSelect({
         aria-label="选择配置"
         aria-expanded={open}
         aria-haspopup="listbox"
-        className={`${buttonClass} inline-flex items-center border border-slate-200 bg-white text-left text-slate-700 outline-none transition hover:border-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-100`}
+        className={`${buttonClass} inline-flex items-center border border-slate-200 bg-white text-left text-slate-700 outline-none transition hover:border-slate-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400`}
+        disabled={disabled}
         type="button"
         onClick={() => setMenuOpen(!open)}
       >

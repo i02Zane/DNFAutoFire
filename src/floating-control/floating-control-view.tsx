@@ -1,4 +1,4 @@
-// 悬浮控制视图：只展示主窗口广播的配置快照，并把轻量操作回传给主窗口。
+﻿// 悬浮控制视图：只展示主窗口广播的配置快照，并把轻量操作回传给主窗口。
 import { Play, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ConfigSelect } from "../components/app-ui";
@@ -18,16 +18,20 @@ import { type AppConfig, isMockMode, tauriCommands } from "../lib/tauri";
 export function FloatingControlView() {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [running, setRunning] = useState(false);
+  const [detectionRunning, setDetectionRunning] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     // 悬浮控制可能晚于主窗口创建，先主动拉一次真实状态，再接入事件广播。
-    void Promise.all([tauriCommands.loadAppConfig(), tauriCommands.isAssistantRunning()]).then(
-      ([nextConfig, isRunning]) => {
-        setConfig(nextConfig);
-        setRunning(isRunning);
-      },
-    );
+    void Promise.all([
+      tauriCommands.loadAppConfig(),
+      tauriCommands.isAssistantRunning(),
+      tauriCommands.isDetectionRunning(),
+    ]).then(([nextConfig, isRunning, isDetectionRunning]) => {
+      setConfig(nextConfig);
+      setRunning(isRunning);
+      setDetectionRunning(isDetectionRunning);
+    });
   }, []);
 
   useEffect(() => {
@@ -37,10 +41,14 @@ export function FloatingControlView() {
     let disposed = false;
     let unlisten: (() => void) | undefined;
     const listenFloatingControlUpdate = async () => {
-      unlisten = await listenAppEvent(APP_EVENTS.floatingControlUpdate, ({ config, running }) => {
-        setConfig(config);
-        setRunning(running);
-      });
+      unlisten = await listenAppEvent(
+        APP_EVENTS.floatingControlUpdate,
+        ({ config, detectionRunning, running }) => {
+          setConfig(config);
+          setDetectionRunning(detectionRunning);
+          setRunning(running);
+        },
+      );
       if (disposed) unlisten();
     };
 
@@ -53,10 +61,23 @@ export function FloatingControlView() {
 
   const keys = computeEffectiveKeys(config);
   const combos = computeEffectiveCombos(config);
+  const detectionModeLabel = config.detection.enabled ? "A" : "M";
 
   async function handleClassChange(classId: string | null) {
     setConfig((prev) => ({ ...prev, activeClassId: classId }));
     await emitAppEvent(APP_EVENTS.floatingControlClassChanged, { activeClassId: classId });
+  }
+
+  async function toggleDetectionMode() {
+    const nextEnabled = !config.detection.enabled;
+    setConfig((prev) => ({
+      ...prev,
+      detection: {
+        ...prev.detection,
+        enabled: nextEnabled,
+      },
+    }));
+    await emitAppEvent(APP_EVENTS.floatingControlDetectionModeToggleRequest, undefined);
   }
 
   async function toggleFloatingAutofire() {
@@ -131,21 +152,33 @@ export function FloatingControlView() {
       <main className="flex items-center gap-2 px-2 py-1.5 text-slate-900" data-tauri-drag-region>
         <div className="flex shrink-0 items-center whitespace-nowrap">
           <ConfigSelect
+            key={detectionRunning ? "detection-locked" : "detection-unlocked"}
             activeClassId={config.activeClassId}
+            disabled={detectionRunning}
             options={configuredConfigOptions(config)}
             compact
             native
             onChange={(id) => void handleClassChange(id)}
           />
         </div>
-        <div className="min-w-0 flex-1 self-stretch" data-tauri-drag-region />
+        <button
+          aria-label={config.detection.enabled ? "切换到手动选择" : "切换到自动识别"}
+          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-xs font-semibold transition ${config.detection.enabled
+            ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+            : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+            }`}
+          title={config.detection.enabled ? "自动识别" : "手动选择"}
+          type="button"
+          onClick={() => void toggleDetectionMode()}
+        >
+          {detectionModeLabel}
+        </button>
         <button
           aria-label={running ? "停止连发" : "启动连发"}
-          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition ${
-            running
-              ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
-              : "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100"
-          }`}
+          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition ${running
+            ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+            : "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100"
+            }`}
           type="button"
           onClick={() => void toggleFloatingAutofire()}
         >

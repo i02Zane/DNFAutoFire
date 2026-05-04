@@ -2,7 +2,7 @@
 import { AppConfig } from "../types/app-config";
 
 let mockConfig: AppConfig = {
-  version: 6,
+  version: 7,
   globalKeys: [{ vk: 0x58, intervalMs: 20 }],
   comboDefs: [],
   classes: {
@@ -37,8 +37,9 @@ let mockConfig: AppConfig = {
   activeClassId: null,
   toggleHotkey: { ctrl: true, alt: false, shift: false, vk: 0x77 },
   detection: {
-    enabled: true,
-    intervalMs: 5000,
+    enabled: false,
+    intervalMs: 200,
+    noMatchPolicy: "current",
     iconDatabaseVersion: "builtin-empty-v1",
   },
   settings: {
@@ -78,6 +79,12 @@ export async function mockInvoke<T>(name: string, args?: Record<string, unknown>
     case "stop_autofire":
       mockRunning = false;
       return true as T;
+    case "start_detection":
+      return true as T;
+    case "stop_detection":
+      return true as T;
+    case "is_detection_running":
+      return false as T;
     case "is_running":
       return mockRunning as T;
     case "is_elevated":

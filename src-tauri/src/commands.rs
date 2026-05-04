@@ -2,8 +2,8 @@
 
 use crate::assistant::{AssistantProfile, EMPTY_ASSISTANT_PROFILE_ERROR};
 use crate::config::{
-    validate_keys, validate_runtime_profile, AppConfig, ComboDefinition, Hotkey, KeyBinding,
-    LogLevelSetting,
+    validate_detection_interval_ms, validate_keys, validate_runtime_profile, AppConfig,
+    ComboDefinition, Hotkey, KeyBinding, LogLevelSetting,
 };
 use crate::core::FireKeyConfig;
 use crate::hotkey::{register_windows_hotkey, validate_hotkey};
@@ -12,6 +12,7 @@ use crate::notify::show_error_message_box;
 use crate::startup::set_windows_launch_at_startup;
 use crate::state::AppState;
 use crate::tray::update_tray_current_config_item;
+use tauri::Emitter;
 use tauri::State;
 
 const EMPTY_AUTOFIRE_KEYS_ERROR: &str = "请至少配置一个连发按键";
@@ -159,6 +160,35 @@ pub(crate) fn stop_autofire(state: State<AppState>) -> bool {
     tracing::info!("请求停止连发引擎");
     state.engine.lock().stop();
     true
+}
+
+#[tauri::command]
+pub(crate) fn start_detection(
+    interval_ms: u64,
+    app: tauri::AppHandle,
+    state: State<AppState>,
+) -> Result<bool, String> {
+    tracing::debug!(interval_ms, "请求启动职业识别引擎");
+    validate_detection_interval_ms(interval_ms)?;
+
+    let mut runtime = state.detection_runtime.lock();
+    runtime.start(app.clone(), interval_ms)?;
+    drop(runtime);
+    emit_detection_running_changed(&app, true);
+    Ok(true)
+}
+
+#[tauri::command]
+pub(crate) fn stop_detection(app: tauri::AppHandle, state: State<AppState>) -> bool {
+    tracing::info!("请求停止职业识别引擎");
+    state.detection_runtime.lock().stop();
+    emit_detection_running_changed(&app, false);
+    true
+}
+
+#[tauri::command]
+pub(crate) fn is_detection_running(state: State<AppState>) -> bool {
+    state.detection_runtime.lock().is_running()
 }
 
 #[tauri::command]
@@ -313,4 +343,10 @@ pub(crate) fn set_launch_at_startup(enabled: bool) -> Result<bool, String> {
     }
 
     Ok(true)
+}
+
+fn emit_detection_running_changed(app: &tauri::AppHandle, running: bool) {
+    if let Err(error) = app.emit(crate::DETECTION_RUNNING_CHANGED_EVENT, running) {
+        tracing::warn!(error = %error, running, "发送职业识别运行状态事件失败");
+    }
 }
