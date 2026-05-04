@@ -59,32 +59,6 @@ export function SettingsPage({
 
         <div className="mt-6 overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
           <SettingsSwitch
-            checked={detectionEnabled}
-            description="仅在打开时启动职业识别后台线程，并在关闭后停止扫描但保留当前结果。"
-            label="自动识别职业"
-            onChange={onDetectionEnabledChange}
-          />
-          <SettingsSelect
-            description="职业识别扫描频率。"
-            label="识别间隔"
-            options={DETECTION_INTERVAL_OPTIONS.map((intervalMs) => ({
-              label: `${intervalMs} ms`,
-              value: String(intervalMs),
-            }))}
-            value={String(detectionIntervalMs)}
-            onChange={(value) => onDetectionIntervalChange(Number(value))}
-          />
-          <SettingsSelect
-            description="识别失败时如何处理当前职业。"
-            label="未识别结果"
-            options={DETECTION_NO_MATCH_POLICY_OPTIONS}
-            value={detectionNoMatchPolicy}
-            onChange={(value) => onDetectionNoMatchPolicyChange(value as DetectionNoMatchPolicy)}
-          />
-        </div>
-
-        <div className="mt-6 overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
-          <SettingsSwitch
             checked={launchAtStartup}
             description={`打开 Windows 后自动启动 ${APP_DISPLAY_NAME}。`}
             label="开机时启动"
@@ -117,6 +91,35 @@ export function SettingsPage({
             value={logLevel}
             onChange={(value) => onLogLevelChange(value as LogLevelSetting)}
           />
+        </div>
+
+        <div className="mt-6">
+          <div className="mb-2 text-sm font-semibold text-slate-700">实验功能</div>
+          <div className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
+            <SettingsSwitch
+              checked={detectionEnabled}
+              description="仅在打开时启动职业识别后台线程，并在关闭后停止扫描但保留当前结果。"
+              label="自动识别职业"
+              onChange={onDetectionEnabledChange}
+            />
+            <SettingsSelect
+              description="职业识别扫描频率。"
+              label="识别间隔"
+              options={DETECTION_INTERVAL_OPTIONS.map((intervalMs) => ({
+                label: `${intervalMs} ms`,
+                value: String(intervalMs),
+              }))}
+              value={String(detectionIntervalMs)}
+              onChange={(value) => onDetectionIntervalChange(Number(value))}
+            />
+            <SettingsSelect
+              description="识别失败时如何处理当前职业。"
+              label="未识别结果"
+              options={DETECTION_NO_MATCH_POLICY_OPTIONS}
+              value={detectionNoMatchPolicy}
+              onChange={(value) => onDetectionNoMatchPolicyChange(value as DetectionNoMatchPolicy)}
+            />
+          </div>
         </div>
       </section>
     </main>
