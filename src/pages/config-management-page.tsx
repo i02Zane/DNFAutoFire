@@ -1,17 +1,19 @@
 import { ChevronDown, ChevronRight, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { ConfirmDialog } from "../components/app-ui";
-import { classCategories } from "../data/classes";
 import { hasClassConfig } from "../lib/config";
 import type { AppConfig } from "../lib/tauri";
+import type { ClassCategory } from "../types/class-catalog";
 
 export function ConfigManagementPage({
   config,
+  classCategories,
   onAddCustomConfig,
   onDeleteCustomConfig,
   onToggleClassHidden,
 }: {
   config: AppConfig;
+  classCategories: ClassCategory[];
   onAddCustomConfig: (name: string) => void;
   onDeleteCustomConfig: (configId: string) => void;
   onToggleClassHidden: (classId: string, hidden: boolean) => void;

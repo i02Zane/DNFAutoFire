@@ -4,6 +4,9 @@ use parking_lot::Mutex;
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use tauri::Emitter;
+
+use crate::config::{AppConfig, AppConfigStore, DetectionNoMatchPolicy};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,15 +20,17 @@ pub(crate) struct ClassDetectionResultEvent {
 pub struct DetectionRuntime {
     enabled: Arc<AtomicBool>,
     interval_ms: Arc<AtomicU64>,
+    config_store: Arc<AppConfigStore>,
     #[cfg(windows)]
     platform: windows_impl::WindowsDetectionRuntime,
 }
 
 impl DetectionRuntime {
-    pub fn new() -> Self {
+    pub fn new(config_store: Arc<AppConfigStore>) -> Self {
         Self {
             enabled: Arc::new(AtomicBool::new(false)),
             interval_ms: Arc::new(AtomicU64::new(crate::config::DEFAULT_DETECTION_INTERVAL_MS)),
+            config_store,
             #[cfg(windows)]
             platform: windows_impl::WindowsDetectionRuntime::new(),
         }
@@ -46,10 +51,12 @@ impl DetectionRuntime {
         self.enabled.store(true, Ordering::SeqCst);
 
         #[cfg(windows)]
-        if let Err(error) =
-            self.platform
-                .start(app_handle, self.enabled.clone(), self.interval_ms.clone())
-        {
+        if let Err(error) = self.platform.start(
+            app_handle,
+            self.enabled.clone(),
+            self.interval_ms.clone(),
+            self.config_store.clone(),
+        ) {
             self.enabled.store(false, Ordering::SeqCst);
             return Err(error);
         }
@@ -82,13 +89,19 @@ impl DetectionRuntime {
 
 impl Default for DetectionRuntime {
     fn default() -> Self {
-        Self::new()
+        Self::new(Arc::new(AppConfigStore::new()))
     }
 }
 
 impl Drop for DetectionRuntime {
     fn drop(&mut self) {
         self.stop();
+    }
+}
+
+fn emit_app_config_changed(app_handle: &tauri::AppHandle, config: &AppConfig) {
+    if let Err(error) = app_handle.emit(crate::APP_CONFIG_CHANGED_EVENT, config) {
+        tracing::warn!(error = %error, "发送配置变更事件失败");
     }
 }
 
@@ -153,6 +166,7 @@ mod windows_impl {
             app_handle: tauri::AppHandle,
             enabled: Arc<AtomicBool>,
             interval_ms: Arc<AtomicU64>,
+            config_store: Arc<AppConfigStore>,
         ) -> Result<(), String> {
             if self.thread_handle.is_some() {
                 return Ok(());
@@ -164,7 +178,14 @@ mod windows_impl {
             let stop_signal = self.stop_signal.clone();
             let last_reported = self.last_reported.clone();
             let handle = thread::spawn(move || {
-                run_detection_worker(app_handle, enabled, interval_ms, stop_signal, last_reported);
+                run_detection_worker(
+                    app_handle,
+                    enabled,
+                    interval_ms,
+                    config_store,
+                    stop_signal,
+                    last_reported,
+                );
             });
             self.thread_handle = Some(handle);
             Ok(())
@@ -194,6 +215,7 @@ mod windows_impl {
         app_handle: tauri::AppHandle,
         enabled: Arc<AtomicBool>,
         interval_ms: Arc<AtomicU64>,
+        config_store: Arc<AppConfigStore>,
         stop_signal: Arc<AtomicBool>,
         last_reported: Arc<Mutex<Option<DetectionSignature>>>,
     ) {
@@ -220,6 +242,7 @@ mod windows_impl {
             let custom_settings = build_capture_settings(
                 hwnd.0,
                 &app_handle,
+                &config_store,
                 &stop_signal,
                 &last_reported,
                 sample_interval_ms,
@@ -235,6 +258,7 @@ mod windows_impl {
                 let default_settings = build_capture_settings(
                     hwnd.0,
                     &app_handle,
+                    &config_store,
                     &stop_signal,
                     &last_reported,
                     sample_interval_ms,
@@ -259,6 +283,7 @@ mod windows_impl {
     type DetectionCaptureFlags = (
         isize,
         tauri::AppHandle,
+        Arc<AppConfigStore>,
         Arc<AtomicBool>,
         Arc<Mutex<Option<DetectionSignature>>>,
         u64,
@@ -269,6 +294,7 @@ mod windows_impl {
     fn build_capture_settings(
         hwnd: *mut std::ffi::c_void,
         app_handle: &tauri::AppHandle,
+        config_store: &Arc<AppConfigStore>,
         stop_signal: &Arc<AtomicBool>,
         last_reported: &Arc<Mutex<Option<DetectionSignature>>>,
         sample_interval_ms: u64,
@@ -285,6 +311,7 @@ mod windows_impl {
             (
                 hwnd as isize,
                 app_handle.clone(),
+                config_store.clone(),
                 stop_signal.clone(),
                 last_reported.clone(),
                 sample_interval_ms,
@@ -295,6 +322,7 @@ mod windows_impl {
     struct DetectionCapture {
         hwnd_raw: isize,
         app_handle: tauri::AppHandle,
+        config_store: Arc<AppConfigStore>,
         stop_signal: Arc<AtomicBool>,
         last_reported: Arc<Mutex<Option<DetectionSignature>>>,
         configured_interval_ms: u64,
@@ -306,11 +334,18 @@ mod windows_impl {
         type Error = Box<dyn std::error::Error + Send + Sync>;
 
         fn new(ctx: Context<Self::Flags>) -> Result<Self, Self::Error> {
-            let (hwnd_raw, app_handle, stop_signal, last_reported, configured_interval_ms) =
-                ctx.flags;
+            let (
+                hwnd_raw,
+                app_handle,
+                config_store,
+                stop_signal,
+                last_reported,
+                configured_interval_ms,
+            ) = ctx.flags;
             Ok(Self {
                 hwnd_raw,
                 app_handle,
+                config_store,
                 stop_signal,
                 last_reported,
                 configured_interval_ms,
@@ -385,6 +420,21 @@ mod windows_impl {
 
             match detect_class_index(raw_data, row_pitch, region)? {
                 Some(class_index) => {
+                    if let Some(class_id) =
+                        crate::core::classes::class_id_by_detection_index(class_index)
+                    {
+                        let _ = self
+                            .config_store
+                            .select_active_config(Some(class_id.to_string()))
+                            .map(|maybe_saved| {
+                                if let Some(saved) = maybe_saved {
+                                    super::emit_app_config_changed(&self.app_handle, &saved);
+                                }
+                            })
+                            .map_err(|error| {
+                                tracing::warn!(error = %error, "更新当前职业配置失败");
+                            });
+                    }
                     emit_detection_result(
                         &self.app_handle,
                         &self.last_reported,
@@ -394,6 +444,22 @@ mod windows_impl {
                     );
                 }
                 None => {
+                    if matches!(
+                        self.config_store.current().detection.no_match_policy,
+                        DetectionNoMatchPolicy::Global
+                    ) {
+                        let _ = self
+                            .config_store
+                            .select_active_config(None)
+                            .map(|maybe_saved| {
+                                if let Some(saved) = maybe_saved {
+                                    super::emit_app_config_changed(&self.app_handle, &saved);
+                                }
+                            })
+                            .map_err(|error| {
+                                tracing::warn!(error = %error, "切回全局配置失败");
+                            });
+                    }
                     emit_detection_result(
                         &self.app_handle,
                         &self.last_reported,
@@ -691,8 +757,9 @@ mod windows_impl {
             app_handle: tauri::AppHandle,
             enabled: Arc<AtomicBool>,
             interval_ms: Arc<AtomicU64>,
+            config_store: Arc<AppConfigStore>,
         ) -> Result<(), String> {
-            let _ = (app_handle, enabled, interval_ms);
+            let _ = (app_handle, enabled, interval_ms, config_store);
             Err("职业识别当前仅支持 Windows。".to_string())
         }
 

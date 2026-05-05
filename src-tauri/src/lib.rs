@@ -13,10 +13,10 @@ mod tray;
 
 use commands::{
     is_assistant_running, is_detection_running, is_elevated, is_running, load_app_config,
-    register_toggle_hotkey, restart_as_admin, save_app_config, set_launch_at_startup,
-    set_log_level, set_runtime_keys, set_runtime_profile, show_error_message, start_assistant,
-    start_autofire, start_detection, stop_assistant, stop_autofire, stop_detection,
-    update_tray_current_config,
+    load_class_categories, register_toggle_hotkey, restart_as_admin, save_app_config,
+    select_active_config, set_launch_at_startup, set_log_level, set_runtime_keys,
+    set_runtime_profile, show_error_message, start_assistant, start_autofire, start_detection,
+    stop_assistant, stop_autofire, stop_detection, update_tray_current_config,
 };
 use state::AppState;
 use tauri::Manager;
@@ -27,6 +27,7 @@ pub(crate) const FLOATING_CONTROL_VISIBILITY_EVENT: &str = "floating-control:vis
 pub(crate) const FLOATING_CONTROL_WINDOW_LABEL: &str = "floating-control";
 pub(crate) const CLASS_DETECTION_RESULT_EVENT: &str = "class-detection:result";
 pub(crate) const DETECTION_RUNNING_CHANGED_EVENT: &str = "class-detection:running-changed";
+pub(crate) const APP_CONFIG_CHANGED_EVENT: &str = "app-config:changed";
 pub(crate) const APP_NAME: &str = "DNF按键助手";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -92,7 +93,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             load_app_config,
+            load_class_categories,
             save_app_config,
+            select_active_config,
             set_log_level,
             set_runtime_keys,
             set_runtime_profile,

@@ -5,7 +5,10 @@ use crate::config::{
     validate_detection_interval_ms, validate_keys, validate_runtime_profile, AppConfig,
     ComboDefinition, Hotkey, KeyBinding, LogLevelSetting,
 };
-use crate::core::FireKeyConfig;
+use crate::core::{
+    classes::{class_categories, ClassCategory},
+    FireKeyConfig,
+};
 use crate::hotkey::{register_windows_hotkey, validate_hotkey};
 use crate::logging::{format_hotkey, update_log_level};
 use crate::notify::show_error_message_box;
@@ -23,6 +26,11 @@ pub(crate) fn load_app_config(state: State<AppState>) -> AppConfig {
 }
 
 #[tauri::command]
+pub(crate) fn load_class_categories() -> Vec<ClassCategory> {
+    class_categories()
+}
+
+#[tauri::command]
 pub(crate) fn save_app_config(
     config: AppConfig,
     state: State<AppState>,
@@ -35,6 +43,23 @@ pub(crate) fn save_app_config(
     );
     // 保存和内存缓存统一交给 AppConfigStore，避免命令各自维护配置副本。
     state.config_store.save(config)
+}
+
+#[tauri::command]
+pub(crate) fn select_active_config(
+    active_class_id: Option<String>,
+    app: tauri::AppHandle,
+    state: State<AppState>,
+) -> Result<AppConfig, String> {
+    let config = state.config_store.select_active_config(active_class_id)?;
+    let config = match config {
+        Some(config) => {
+            emit_app_config_changed(&app, &config);
+            config
+        }
+        None => state.config_store.current(),
+    };
+    Ok(config)
 }
 
 #[tauri::command]
@@ -348,5 +373,11 @@ pub(crate) fn set_launch_at_startup(enabled: bool) -> Result<bool, String> {
 fn emit_detection_running_changed(app: &tauri::AppHandle, running: bool) {
     if let Err(error) = app.emit(crate::DETECTION_RUNNING_CHANGED_EVENT, running) {
         tracing::warn!(error = %error, running, "发送职业识别运行状态事件失败");
+    }
+}
+
+pub(crate) fn emit_app_config_changed(app: &tauri::AppHandle, config: &AppConfig) {
+    if let Err(error) = app.emit(crate::APP_CONFIG_CHANGED_EVENT, config) {
+        tracing::warn!(error = %error, "发送配置变更事件失败");
     }
 }

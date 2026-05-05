@@ -1,4 +1,4 @@
-﻿// 悬浮控制视图：只展示主窗口广播的配置快照，并把轻量操作回传给主窗口。
+// 悬浮控制视图：只展示主窗口广播的配置快照，并把轻量操作回传给主窗口。
 import { Play, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ConfigSelect } from "../components/app-ui";
@@ -13,10 +13,11 @@ import {
   FLOATING_CONTROL_POSITION_KEY,
   getFloatingControlTextScale,
 } from "../lib/floating-control";
-import { type AppConfig, isMockMode, tauriCommands } from "../lib/tauri";
+import { type AppConfig, type ClassCategory, isMockMode, tauriCommands } from "../lib/tauri";
 
 export function FloatingControlView() {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
+  const [classCategories, setClassCategories] = useState<ClassCategory[]>([]);
   const [running, setRunning] = useState(false);
   const [detectionRunning, setDetectionRunning] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -27,7 +28,9 @@ export function FloatingControlView() {
       tauriCommands.loadAppConfig(),
       tauriCommands.isAssistantRunning(),
       tauriCommands.isDetectionRunning(),
-    ]).then(([nextConfig, isRunning, isDetectionRunning]) => {
+      tauriCommands.loadClassCategories(),
+    ]).then(([nextConfig, isRunning, isDetectionRunning, classCategories]) => {
+      setClassCategories(classCategories);
       setConfig(nextConfig);
       setRunning(isRunning);
       setDetectionRunning(isDetectionRunning);
@@ -59,13 +62,37 @@ export function FloatingControlView() {
     };
   }, []);
 
+  useEffect(() => {
+    if (isMockMode()) return;
+
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    const listenConfigChanged = async () => {
+      unlisten = await listenAppEvent(APP_EVENTS.appConfigChanged, (nextConfig) => {
+        setConfig(nextConfig);
+      });
+      if (disposed) unlisten();
+    };
+
+    void listenConfigChanged().catch(() => undefined);
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+
   const keys = computeEffectiveKeys(config);
   const combos = computeEffectiveCombos(config);
   const detectionModeLabel = config.detection.enabled ? "A" : "M";
 
   async function handleClassChange(classId: string | null) {
-    setConfig((prev) => ({ ...prev, activeClassId: classId }));
-    await emitAppEvent(APP_EVENTS.floatingControlClassChanged, { activeClassId: classId });
+    try {
+      const nextConfig = await tauriCommands.selectActiveConfig(classId);
+      setConfig(nextConfig);
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      await tauriCommands.showErrorMessage(message).catch(() => undefined);
+    }
   }
 
   async function toggleDetectionMode() {
@@ -155,7 +182,7 @@ export function FloatingControlView() {
             key={detectionRunning ? "detection-locked" : "detection-unlocked"}
             activeClassId={config.activeClassId}
             disabled={detectionRunning}
-            options={configuredConfigOptions(config)}
+            options={configuredConfigOptions(config, classCategories)}
             compact
             native
             onChange={(id) => void handleClassChange(id)}
@@ -163,10 +190,11 @@ export function FloatingControlView() {
         </div>
         <button
           aria-label={config.detection.enabled ? "切换到手动选择" : "切换到自动识别"}
-          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-xs font-semibold transition ${config.detection.enabled
-            ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-            : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-            }`}
+          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-xs font-semibold transition ${
+            config.detection.enabled
+              ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+              : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+          }`}
           title={config.detection.enabled ? "自动识别" : "手动选择"}
           type="button"
           onClick={() => void toggleDetectionMode()}
@@ -175,10 +203,11 @@ export function FloatingControlView() {
         </button>
         <button
           aria-label={running ? "停止连发" : "启动连发"}
-          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition ${running
-            ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
-            : "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100"
-            }`}
+          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition ${
+            running
+              ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+              : "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100"
+          }`}
           type="button"
           onClick={() => void toggleFloatingAutofire()}
         >

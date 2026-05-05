@@ -12,7 +12,7 @@ import {
   makeClassConfig,
   makeCustomConfig,
 } from "./tauri";
-import { getClassName } from "../data/classes";
+import type { ClassCategory } from "../types/class-catalog";
 
 const MIN_COMBO_HOLD_MS = 10;
 const MAX_COMBO_HOLD_MS = 1000;
@@ -91,12 +91,16 @@ export function getProfileConfig(config: AppConfig, configId: string): ClassConf
     : getClassConfig(config, configId);
 }
 
-export function getConfigDisplayName(config: AppConfig, configId: string | null): string {
+export function getConfigDisplayName(
+  config: AppConfig,
+  configId: string | null,
+  classCategories: ClassCategory[],
+): string {
   if (!configId) return "全局配置";
   if (isCustomConfigId(config, configId)) {
     return getCustomConfig(config, configId).name.trim() || "未命名配置";
   }
-  return getClassName(configId);
+  return getClassName(classCategories, configId);
 }
 
 export function hasDuplicateKeys(keys: KeyBinding[]): boolean {
@@ -115,11 +119,14 @@ export function hasClassConfig(classConfig: ClassConfig | undefined): boolean {
   return hasClassKeyConfig(classConfig) || hasClassComboConfig(classConfig);
 }
 
-export function configuredConfigOptions(config: AppConfig): ConfigOption[] {
+export function configuredConfigOptions(
+  config: AppConfig,
+  classCategories: ClassCategory[],
+): ConfigOption[] {
   // 只有连招、没有连发键的配置也要出现在“当前配置”选择器中。
   const classOptions = Object.entries(config.classes)
     .filter(([, classConfig]) => hasClassConfig(classConfig))
-    .map(([classId]) => ({ id: classId, label: getClassName(classId) }));
+    .map(([classId]) => ({ id: classId, label: getClassName(classCategories, classId) }));
   const customOptions = Object.entries(config.customConfigs)
     .filter(([, customConfig]) => hasClassConfig(customConfig))
     .map(([id, customConfig]) => ({
@@ -128,6 +135,14 @@ export function configuredConfigOptions(config: AppConfig): ConfigOption[] {
     }));
 
   return [...classOptions, ...customOptions];
+}
+
+function getClassName(classCategories: ClassCategory[], classId: string): string {
+  for (const category of classCategories) {
+    const classInfo = category.classes.find((item) => item.id === classId);
+    if (classInfo) return classInfo.name;
+  }
+  return "未知职业";
 }
 
 export function isClassVisible(config: AppConfig, classId: string): boolean {

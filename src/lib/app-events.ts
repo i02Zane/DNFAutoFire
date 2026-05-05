@@ -5,8 +5,8 @@ import { isMockMode } from "./tauri-env";
 export const APP_EVENTS = {
   classDetectionResult: "class-detection:result",
   detectionRunningChanged: "class-detection:running-changed",
+  appConfigChanged: "app-config:changed",
   floatingControlDetectionModeToggleRequest: "floating-control:detection-mode-toggle-request",
-  floatingControlClassChanged: "floating-control:class-changed",
   floatingControlToggleRequest: "floating-control:toggle-request",
   floatingControlUpdate: "floating-control:update",
   floatingControlVisibilityChanged: "floating-control:visibility-changed",
@@ -22,17 +22,13 @@ export type FloatingControlVisibilityPayload = {
   visible: boolean;
 };
 
-export type FloatingControlClassChangedPayload = {
-  activeClassId: string | null;
-};
-
 export type DetectionRunningChangedPayload = boolean;
 
 type AppEventPayloads = {
   // 新增事件时先在这里登记 payload，再通过 emitAppEvent/listenAppEvent 调用。
   [APP_EVENTS.classDetectionResult]: ClassDetectionResult;
   [APP_EVENTS.detectionRunningChanged]: DetectionRunningChangedPayload;
-  [APP_EVENTS.floatingControlClassChanged]: FloatingControlClassChangedPayload;
+  [APP_EVENTS.appConfigChanged]: AppConfig;
   [APP_EVENTS.floatingControlDetectionModeToggleRequest]: undefined;
   [APP_EVENTS.floatingControlToggleRequest]: undefined;
   [APP_EVENTS.floatingControlUpdate]: FloatingControlUpdatePayload;

@@ -15,7 +15,7 @@ pub struct AppState {
     /// 职业识别运行时，按开关懒加载并复用同一份后端线程。
     pub(crate) detection_runtime: Arc<Mutex<DetectionRuntime>>,
     /// 配置唯一入口，负责持久化路径、启动读取和内存缓存。
-    pub(crate) config_store: AppConfigStore,
+    pub(crate) config_store: Arc<AppConfigStore>,
     /// 当前注册的 Windows 全局快捷键，替换时 drop 会注销旧注册。
     pub(crate) hotkey_registration: Arc<Mutex<Option<HotkeyRegistration>>>,
     /// 托盘“当前配置”菜单项句柄，用于前端切换配置后更新文案。
@@ -28,13 +28,14 @@ impl AppState {
         let engine = Arc::new(Mutex::new(AutoFireEngine::new()));
         let combo_engine = Arc::new(Mutex::new(ComboEngine::new()));
         let assistant_runtime = AssistantRuntime::new(engine.clone(), combo_engine);
-        let detection_runtime = Arc::new(Mutex::new(DetectionRuntime::new()));
+        let config_store = Arc::new(AppConfigStore::new());
+        let detection_runtime = Arc::new(Mutex::new(DetectionRuntime::new(config_store.clone())));
 
         Self {
             engine,
             assistant_runtime,
             detection_runtime,
-            config_store: AppConfigStore::new(),
+            config_store,
             hotkey_registration: Arc::new(Mutex::new(None)),
             tray_current_config_item: Arc::new(Mutex::new(None)),
             tray_current_config_label: Arc::new(Mutex::new(String::new())),

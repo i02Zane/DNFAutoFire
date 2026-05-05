@@ -1,5 +1,13 @@
 // 浏览器预览模式的 Tauri mock，支持前端在没有桌面壳时调试主要交互。
 import { AppConfig } from "../types/app-config";
+import type { ClassCategory } from "../types/class-catalog";
+
+const mockClassCategories: ClassCategory[] = [
+  {
+    name: "鬼剑士(男)",
+    classes: [{ id: "male_slayer_blade_master", name: "剑魂", detectionIndex: 0 }],
+  },
+];
 
 let mockConfig: AppConfig = {
   version: 7,
@@ -53,14 +61,42 @@ let mockConfig: AppConfig = {
 
 let mockRunning = false;
 
+function isMockSelectableConfigId(config: AppConfig, configId: string): boolean {
+  const customConfig = config.customConfigs[configId];
+  if (customConfig) {
+    return customConfig.enabledKeys.length > 0 || customConfig.comboDefs.length > 0;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(config.classes, configId)) {
+    return false;
+  }
+
+  const classConfig = config.classes[configId];
+  return (classConfig?.enabledKeys.length ?? 0) > 0 || (classConfig?.comboDefs.length ?? 0) > 0;
+}
+
 export async function mockInvoke<T>(name: string, args?: Record<string, unknown>): Promise<T> {
   // mock 只模拟前端需要的返回值，不触碰真实 Win32、托盘或文件系统。
   switch (name) {
     case "load_app_config":
       return structuredClone(mockConfig) as T;
+    case "load_class_categories":
+      return structuredClone(mockClassCategories) as T;
     case "save_app_config":
       mockConfig = structuredClone(args?.config as AppConfig);
       return structuredClone(mockConfig) as T;
+    case "select_active_config": {
+      const requestedActiveClassId = (args?.activeClassId as string | null | undefined) ?? null;
+      const normalizedActiveClassId =
+        requestedActiveClassId && isMockSelectableConfigId(mockConfig, requestedActiveClassId)
+          ? requestedActiveClassId
+          : null;
+      mockConfig = {
+        ...mockConfig,
+        activeClassId: normalizedActiveClassId,
+      };
+      return structuredClone(mockConfig) as T;
+    }
     case "set_runtime_keys":
       return true as T;
     case "set_runtime_profile":

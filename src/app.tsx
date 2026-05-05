@@ -22,9 +22,9 @@ import {
   RuleHelpTooltip,
 } from "./components/app-ui";
 import { ComboEditorPage } from "./components/combo-editor";
-import { classCategories } from "./data/classes";
 import { FloatingControlView } from "./floating-control/floating-control-view";
 import { useAppConfig } from "./hooks/use-app-config";
+import { useClassCatalog } from "./hooks/use-class-catalog";
 import { useAssistantRuntime } from "./hooks/use-assistant-runtime";
 import { useDetectionRuntime } from "./hooks/use-detection-runtime";
 import { useFloatingControlSync } from "./hooks/use-floating-control-sync";
@@ -190,6 +190,7 @@ function MainApp() {
     intervalMs: detectionIntervalMs,
     noMatchPolicy,
   } = config.detection;
+  const classCategories = useClassCatalog();
 
   // 快捷键录制要短暂接管全局键盘输入，单独拆出去避免污染页面交互逻辑。
   useHotkeyRecorder({
@@ -209,9 +210,12 @@ function MainApp() {
     target?.type === "global"
       ? "全局配置"
       : target?.type === "profile"
-        ? getConfigDisplayName(config, target.configId)
+        ? getConfigDisplayName(config, target.configId, classCategories)
         : "";
-  const configOptions = useMemo(() => configuredConfigOptions(config), [config]);
+  const configOptions = useMemo(
+    () => configuredConfigOptions(config, classCategories),
+    [classCategories, config],
+  );
   const visibleCustomConfigs = useMemo(() => {
     const normalizedSearch = autofireClassSearch.trim().toLowerCase();
     return Object.entries(config.customConfigs).filter(([, customConfig]) => {
@@ -237,11 +241,11 @@ function MainApp() {
           ),
         }))
         .filter((category) => category.classes.length > 0),
-    [config, normalizedAutofireClassSearch],
+    [classCategories, config, normalizedAutofireClassSearch],
   );
   const currentConfigLabel = useMemo(
-    () => getConfigDisplayName(config, config.activeClassId),
-    [config],
+    () => getConfigDisplayName(config, config.activeClassId, classCategories),
+    [classCategories, config],
   );
 
   // 运行态同步、托盘文案和热键注册共用同一条状态链路，集中放进 hook。
@@ -258,12 +262,9 @@ function MainApp() {
 
   useDetectionRuntime({
     config,
-    configRef,
-    detectionRunning,
     setDetectionRunning,
     showMessage,
     startupConfigLoaded,
-    updateConfig,
   });
 
   // 悬浮控制与主窗口双向同步，但真正的配置落盘仍只发生在主窗口。
@@ -786,6 +787,7 @@ function MainApp() {
             ) : page === "combo" ? (
               <ComboEditorPage
                 config={config}
+                classCategories={classCategories}
                 selectedConfigId={comboClassId}
                 onCombosChange={updateProfileCombos}
                 onSelectedConfigIdChange={(configId) => setComboClassId(configId)}
@@ -793,6 +795,7 @@ function MainApp() {
             ) : page === "config-management" ? (
               <ConfigManagementPage
                 config={config}
+                classCategories={classCategories}
                 onAddCustomConfig={addCustomConfig}
                 onDeleteCustomConfig={deleteCustomConfig}
                 onToggleClassHidden={toggleClassHidden}
@@ -833,10 +836,9 @@ function MainApp() {
                   options={configOptions}
                   placement="top"
                   onChange={(id) =>
-                    void updateConfig((currentConfig) => ({
-                      ...currentConfig,
-                      activeClassId: id,
-                    }))
+                    void tauriCommands.selectActiveConfig(id).catch((reason) => {
+                      showMessage(reason instanceof Error ? reason.message : String(reason));
+                    })
                   }
                 />
                 <label className="ml-3 inline-flex cursor-pointer items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700">

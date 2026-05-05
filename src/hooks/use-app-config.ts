@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { APP_EVENTS, listenAppEvent } from "../lib/app-events";
 import { DEFAULT_CONFIG } from "../lib/config";
 import { type AppConfig, tauriCommands } from "../lib/tauri";
 
@@ -73,12 +74,34 @@ export function useAppConfig({ onSaveError, onStartupLoaded }: UseAppConfigOptio
       tauriCommands.isAssistantRunning(),
       tauriCommands.isDetectionRunning(),
     ]).then(([nextConfig, isRunning, detectionRunning]) => {
-        lastSavedConfigRef.current = nextConfig;
-        applyConfig(nextConfig);
-        onStartupLoaded({ config: nextConfig, running: isRunning, detectionRunning });
-        setStartupConfigLoaded(true);
-      });
+      lastSavedConfigRef.current = nextConfig;
+      applyConfig(nextConfig);
+      onStartupLoaded({ config: nextConfig, running: isRunning, detectionRunning });
+      setStartupConfigLoaded(true);
+    });
   }, [applyConfig, onStartupLoaded]);
+
+  useEffect(() => {
+    if (window.location.search.includes("view=floating-control")) return;
+    if (typeof window === "undefined") return;
+
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    const listenConfigChanged = async () => {
+      unlisten = await listenAppEvent(APP_EVENTS.appConfigChanged, (nextConfig) => {
+        lastSavedConfigRef.current = nextConfig;
+        configSaveIdRef.current += 1;
+        applyConfig(nextConfig);
+      });
+      if (disposed) unlisten();
+    };
+
+    void listenConfigChanged().catch(() => undefined);
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [applyConfig]);
 
   const updateSettings = useCallback(
     (settings: Partial<AppConfig["settings"]>) => {

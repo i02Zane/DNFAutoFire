@@ -1,6 +1,7 @@
 //! 核心按键发送模块
 
 pub mod autofire;
+pub mod classes;
 pub mod combo;
 pub mod detection;
 pub mod hook;

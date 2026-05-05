@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SVGProps } from "react";
-import { classCategories } from "../data/classes";
 import { browserKeyToVk } from "../lib/browser-keys";
 import {
   computeEffectiveKeysForProfile,
@@ -39,6 +38,7 @@ import {
   ComboTapAction,
   ComboValidationIssue,
 } from "../lib/tauri";
+import type { ClassCategory } from "../types/class-catalog";
 
 type RecordingTarget =
   | { type: "trigger"; comboId: string }
@@ -49,11 +49,13 @@ const EMPTY_COMBOS: ComboDefinition[] = [];
 
 export function ComboEditorPage({
   config,
+  classCategories,
   selectedConfigId,
   onCombosChange,
   onSelectedConfigIdChange,
 }: {
   config: AppConfig;
+  classCategories: ClassCategory[];
   selectedConfigId: string | null;
   onCombosChange: (configId: string, combos: ComboDefinition[]) => void;
   onSelectedConfigIdChange: (configId: string | null) => void;
@@ -90,7 +92,7 @@ export function ComboEditorPage({
           ),
         }))
         .filter((category) => category.classes.length > 0),
-    [config, normalizedClassSearch],
+    [classCategories, config, normalizedClassSearch],
   );
   const visibleCustomConfigs = useMemo(
     () =>
@@ -328,7 +330,7 @@ export function ComboEditorPage({
                 <div className="min-w-0">
                   <div className="text-xs font-medium text-slate-500 hidden">当前职业</div>
                   <h2 className="mt-1 truncate text-xl font-semibold text-slate-900">
-                    {getConfigDisplayName(config, activeConfigId)}
+                    {getConfigDisplayName(config, activeConfigId, classCategories)}
                   </h2>
                 </div>
                 <div className="flex items-center gap-2">

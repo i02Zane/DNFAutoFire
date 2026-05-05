@@ -67,28 +67,6 @@ export function useFloatingControlSync({
   useEffect(() => {
     if (isMockMode()) return;
 
-    // 悬浮窗没有直接写配置权限，只通过事件把职业切换交回主窗口统一保存。
-    let disposed = false;
-    let unlisten: (() => void) | undefined;
-    const listenClassChange = async () => {
-      unlisten = await listenAppEvent(
-        APP_EVENTS.floatingControlClassChanged,
-        ({ activeClassId }) => {
-          void updateConfig((currentConfig) => ({ ...currentConfig, activeClassId }));
-        },
-      );
-      if (disposed) unlisten();
-    };
-    void listenClassChange().catch(() => undefined);
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, [updateConfig]);
-
-  useEffect(() => {
-    if (isMockMode()) return;
-
     // 自动/手动识别切换也由主窗口落盘；悬浮窗只发起请求，避免多窗口各自保存配置。
     let disposed = false;
     let unlisten: (() => void) | undefined;

@@ -257,6 +257,7 @@ fn default_detection_icon_database_version() -> String {
     "builtin-empty-v1".to_string()
 }
 
+#[derive(Debug)]
 pub(crate) struct AppConfigStore {
     path: PathBuf,
     config: Mutex<AppConfig>,
@@ -316,6 +317,36 @@ impl AppConfigStore {
         );
         Ok(config)
     }
+
+    pub(crate) fn select_active_config(
+        &self,
+        active_class_id: Option<String>,
+    ) -> Result<Option<AppConfig>, String> {
+        let mut config = self.current();
+        let next_active_class_id = normalize_active_config_id(&config, active_class_id);
+        if config.active_class_id == next_active_class_id {
+            return Ok(None);
+        }
+        config.active_class_id = next_active_class_id;
+        self.save(config).map(Some)
+    }
+}
+
+fn normalize_active_config_id(
+    config: &AppConfig,
+    active_class_id: Option<String>,
+) -> Option<String> {
+    let Some(active_class_id) = active_class_id else {
+        return None;
+    };
+    let active_class_id = active_class_id.trim().to_string();
+    if active_class_id.is_empty() {
+        return None;
+    }
+    if is_active_profile_id(config, &active_class_id) {
+        return Some(active_class_id);
+    }
+    None
 }
 
 pub(crate) fn write_config_atomically(path: &Path, content: &[u8]) -> std::io::Result<()> {
@@ -507,15 +538,17 @@ fn normalize_active_profile(config: &mut AppConfig) {
         return;
     };
 
-    let has_active_profile = config.classes.get(active_id).is_some_and(has_class_config)
+    if !is_active_profile_id(config, active_id) {
+        config.active_class_id = None;
+    }
+}
+
+fn is_active_profile_id(config: &AppConfig, active_id: &str) -> bool {
+    config.classes.get(active_id).is_some_and(has_class_config)
         || config
             .custom_configs
             .get(active_id)
-            .is_some_and(has_custom_config);
-
-    if !has_active_profile {
-        config.active_class_id = None;
-    }
+            .is_some_and(has_custom_config)
 }
 
 fn has_class_config(config: &ClassConfig) -> bool {
@@ -791,8 +824,9 @@ mod tests {
     use super::{
         is_legacy_profile_candidate, load_config_from_path, read_log_level_setting,
         validate_config, validate_runtime_profile, AppConfig, AppConfigStore, AppSettings,
-        ComboAction, ComboDefinition, CustomConfig, DetectionNoMatchPolicy, DetectionSettings,
-        EffectRule, KeyBinding, LogLevelSetting, CONFIG_VERSION, DEFAULT_DETECTION_INTERVAL_MS,
+        ClassConfig, ComboAction, ComboDefinition, CustomConfig, DetectionNoMatchPolicy,
+        DetectionSettings, EffectRule, KeyBinding, LogLevelSetting, CONFIG_VERSION,
+        DEFAULT_DETECTION_INTERVAL_MS,
     };
     use std::collections::BTreeMap;
     use std::fs;
@@ -1315,6 +1349,72 @@ mod tests {
         assert_eq!(saved.global_keys[0].interval_ms, 25);
         assert_eq!(cached.global_keys[0].interval_ms, 25);
         assert_eq!(file_config.global_keys[0].interval_ms, 25);
+
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn select_active_config_returns_none_when_selection_does_not_change() {
+        let dir = unique_temp_dir("select-active-config-no-op");
+        let path = dir.join("app-config.json");
+        let store = AppConfigStore::from_path(path);
+        let mut config = minimal_config();
+        config.classes.insert(
+            "male_slayer_blade_master".to_string(),
+            ClassConfig {
+                enabled_keys: vec![KeyBinding {
+                    vk: 0x41,
+                    interval_ms: 20,
+                }],
+                effect_rule: EffectRule::GlobalAndClass,
+                combo_defs: Vec::new(),
+            },
+        );
+        store.save(config).unwrap();
+
+        let first = store
+            .select_active_config(Some("male_slayer_blade_master".to_string()))
+            .unwrap();
+        let second = store
+            .select_active_config(Some("male_slayer_blade_master".to_string()))
+            .unwrap();
+
+        assert!(first.is_some());
+        assert!(second.is_none());
+        assert_eq!(
+            store.current().active_class_id,
+            Some("male_slayer_blade_master".to_string())
+        );
+
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn select_active_config_falls_back_to_global_for_unknown_class_id() {
+        let dir = unique_temp_dir("select-active-config-unknown");
+        let path = dir.join("app-config.json");
+        let store = AppConfigStore::from_path(path);
+        let mut config = minimal_config();
+        config.classes.insert(
+            "male_slayer_blade_master".to_string(),
+            ClassConfig {
+                enabled_keys: vec![KeyBinding {
+                    vk: 0x41,
+                    interval_ms: 20,
+                }],
+                effect_rule: EffectRule::GlobalAndClass,
+                combo_defs: Vec::new(),
+            },
+        );
+        config.active_class_id = Some("male_slayer_blade_master".to_string());
+        store.save(config).unwrap();
+
+        let saved = store
+            .select_active_config(Some("missing-class-id".to_string()))
+            .unwrap();
+
+        assert!(saved.is_some());
+        assert_eq!(store.current().active_class_id, None);
 
         fs::remove_dir_all(dir).unwrap();
     }

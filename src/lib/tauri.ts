@@ -23,6 +23,7 @@ export {
   makeClassConfig,
   makeCustomConfig,
 } from "../types/app-config";
+export { type ClassCategory, type ClassInfo } from "../types/class-catalog";
 export { isMockMode, isTauriEnvironment } from "./tauri-env";
 export { tauriCommands } from "./tauri-commands";
 

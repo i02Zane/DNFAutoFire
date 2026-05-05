@@ -10,6 +10,7 @@ import {
   KeyBinding,
   LogLevelSetting,
 } from "../types/app-config";
+import type { ClassCategory } from "../types/class-catalog";
 import { isTauriEnvironment } from "./tauri-env";
 import { mockInvoke } from "./mock-tauri";
 
@@ -25,7 +26,10 @@ async function invokeCommand<T>(name: string, args?: Record<string, unknown>): P
 
 export const tauriCommands = {
   loadAppConfig: () => invokeCommand<AppConfig>("load_app_config"),
+  loadClassCategories: () => invokeCommand<ClassCategory[]>("load_class_categories"),
   saveAppConfig: (config: AppConfig) => invokeCommand<AppConfig>("save_app_config", { config }),
+  selectActiveConfig: (activeClassId: string | null) =>
+    invokeCommand<AppConfig>("select_active_config", { activeClassId }),
   setRuntimeKeys: (keys: KeyBinding[]) => invokeCommand<boolean>("set_runtime_keys", { keys }),
   setRuntimeProfile: (keys: KeyBinding[], combos: ComboDefinition[]) =>
     invokeCommand<boolean>("set_runtime_profile", { keys, combos }),
