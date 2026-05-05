@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.5] - 2026-05-06
+- 修复 Win11 24H2 之前系统无法启动职业自动识别的问题
+
 ## [0.3.4] - 2026-05-04
 - 新增职业自动识别功能
 
