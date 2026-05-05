@@ -217,32 +217,79 @@ mod windows_impl {
                 continue;
             };
 
-            let window = Window::from_raw_hwnd(hwnd.0);
-            let settings = Settings::new(
-                window,
-                CursorCaptureSettings::Default,
-                DrawBorderSettings::WithoutBorder,
-                SecondaryWindowSettings::Default,
+            let custom_settings = build_capture_settings(
+                hwnd.0,
+                &app_handle,
+                &stop_signal,
+                &last_reported,
+                sample_interval_ms,
                 MinimumUpdateIntervalSettings::Custom(Duration::from_millis(sample_interval_ms)),
-                DirtyRegionSettings::Default,
-                ColorFormat::Bgra8,
-                (
-                    hwnd.0 as isize,
-                    app_handle.clone(),
-                    stop_signal.clone(),
-                    last_reported.clone(),
-                    sample_interval_ms,
-                ),
             );
 
-            if let Err(error) = DetectionCapture::start(settings) {
-                tracing::warn!(error = %error, "职业识别捕获失败");
-                emit_detection_result(&app_handle, &last_reported, None, 0.0, "captureError");
-                thread::sleep(Duration::from_millis(sample_interval_ms));
+            if let Err(custom_error) = DetectionCapture::start(custom_settings) {
+                tracing::warn!(
+                    error = %custom_error,
+                    "职业识别自定义采样间隔捕获失败，尝试默认间隔"
+                );
+
+                let default_settings = build_capture_settings(
+                    hwnd.0,
+                    &app_handle,
+                    &stop_signal,
+                    &last_reported,
+                    sample_interval_ms,
+                    MinimumUpdateIntervalSettings::Default,
+                );
+
+                if let Err(default_error) = DetectionCapture::start(default_settings) {
+                    tracing::warn!(
+                        custom_error = %custom_error,
+                        error = %default_error,
+                        "职业识别默认采样间隔捕获失败"
+                    );
+                    emit_detection_result(&app_handle, &last_reported, None, 0.0, "captureError");
+                    thread::sleep(Duration::from_millis(sample_interval_ms));
+                }
             }
         }
 
         tracing::info!("职业识别线程已停止");
+    }
+
+    type DetectionCaptureFlags = (
+        isize,
+        tauri::AppHandle,
+        Arc<AtomicBool>,
+        Arc<Mutex<Option<DetectionSignature>>>,
+        u64,
+    );
+
+    type DetectionCaptureSettings = Settings<DetectionCaptureFlags, Window>;
+
+    fn build_capture_settings(
+        hwnd: *mut std::ffi::c_void,
+        app_handle: &tauri::AppHandle,
+        stop_signal: &Arc<AtomicBool>,
+        last_reported: &Arc<Mutex<Option<DetectionSignature>>>,
+        sample_interval_ms: u64,
+        minimum_update_interval_settings: MinimumUpdateIntervalSettings,
+    ) -> DetectionCaptureSettings {
+        Settings::new(
+            Window::from_raw_hwnd(hwnd),
+            CursorCaptureSettings::Default,
+            DrawBorderSettings::WithoutBorder,
+            SecondaryWindowSettings::Default,
+            minimum_update_interval_settings,
+            DirtyRegionSettings::Default,
+            ColorFormat::Bgra8,
+            (
+                hwnd as isize,
+                app_handle.clone(),
+                stop_signal.clone(),
+                last_reported.clone(),
+                sample_interval_ms,
+            ),
+        )
     }
 
     struct DetectionCapture {
@@ -255,13 +302,7 @@ mod windows_impl {
     }
 
     impl GraphicsCaptureApiHandler for DetectionCapture {
-        type Flags = (
-            isize,
-            tauri::AppHandle,
-            Arc<AtomicBool>,
-            Arc<Mutex<Option<DetectionSignature>>>,
-            u64,
-        );
+        type Flags = DetectionCaptureFlags;
         type Error = Box<dyn std::error::Error + Send + Sync>;
 
         fn new(ctx: Context<Self::Flags>) -> Result<Self, Self::Error> {
