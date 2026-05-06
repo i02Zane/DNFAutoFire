@@ -12,11 +12,12 @@ mod state;
 mod tray;
 
 use commands::{
-    is_assistant_running, is_detection_running, is_elevated, is_running, load_app_config,
-    load_class_categories, register_toggle_hotkey, restart_as_admin, save_app_config,
-    select_active_config, set_launch_at_startup, set_log_level, set_runtime_keys,
-    set_runtime_profile, show_error_message, start_assistant, start_autofire, start_detection,
-    stop_assistant, stop_autofire, stop_detection, update_tray_current_config,
+    is_assistant_running, is_auto_run_running, is_detection_running, is_elevated, is_running,
+    load_app_config, load_class_categories, register_toggle_hotkey, restart_as_admin,
+    save_app_config, select_active_config, set_launch_at_startup, set_log_level, set_runtime_keys,
+    set_runtime_profile, show_error_message, start_assistant, start_auto_run, start_autofire,
+    start_detection, stop_assistant, stop_auto_run, stop_autofire, stop_detection,
+    update_tray_current_config,
 };
 use state::AppState;
 use tauri::Manager;
@@ -74,6 +75,7 @@ pub fn run() {
                 start_minimized = config.settings.start_minimized,
                 minimize_to_tray = config.settings.minimize_to_tray,
                 open_floating_control_on_start = config.settings.open_floating_control_on_start,
+                auto_run_enabled = config.settings.auto_run_enabled,
                 launch_at_startup = config.settings.launch_at_startup,
                 "运行配置已加载"
             );
@@ -100,8 +102,11 @@ pub fn run() {
             set_runtime_keys,
             set_runtime_profile,
             start_assistant,
+            start_auto_run,
             stop_assistant,
+            stop_auto_run,
             is_assistant_running,
+            is_auto_run_running,
             start_autofire,
             stop_autofire,
             start_detection,

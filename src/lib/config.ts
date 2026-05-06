@@ -29,6 +29,12 @@ export const COMBO_COMMAND_ALLOWED_VKS = new Set([
 const DEFAULT_LOG_LEVEL: LogLevelSetting = import.meta.env.DEV ? "debug" : "info";
 export const DEFAULT_DETECTION_INTERVAL_MS = 200;
 export const DETECTION_INTERVAL_OPTIONS = [100, 200, 500, 1000] as const;
+export const DEFAULT_AUTO_RUN_PULSE_DELAY_MS = 25;
+export const AUTO_RUN_PULSE_DELAY_OPTIONS = [
+  { label: "短", value: 10 },
+  { label: "中", value: 25 },
+  { label: "长", value: 50 },
+] as const;
 export const DETECTION_NO_MATCH_POLICY_OPTIONS: {
   label: string;
   value: DetectionNoMatchPolicy;
@@ -38,7 +44,7 @@ export const DETECTION_NO_MATCH_POLICY_OPTIONS: {
 ];
 
 export const DEFAULT_CONFIG: AppConfig = {
-  version: 7,
+  version: 10,
   globalKeys: [{ vk: 0x58, intervalMs: 20 }],
   comboDefs: [],
   classes: {},
@@ -57,6 +63,10 @@ export const DEFAULT_CONFIG: AppConfig = {
     startMinimized: false,
     minimizeToTray: false,
     openFloatingControlOnStart: false,
+    autoRunEnabled: false,
+    autoRunLeftVk: 0x25,
+    autoRunRightVk: 0x27,
+    autoRunPulseDelayMs: DEFAULT_AUTO_RUN_PULSE_DELAY_MS,
     logLevel: DEFAULT_LOG_LEVEL,
   },
 };
@@ -65,6 +75,12 @@ export function normalizeDetectionIntervalMs(intervalMs: number): number {
   return DETECTION_INTERVAL_OPTIONS.some((option) => option === intervalMs)
     ? intervalMs
     : DEFAULT_DETECTION_INTERVAL_MS;
+}
+
+export function normalizeAutoRunPulseDelayMs(pulseDelayMs: number): number {
+  return AUTO_RUN_PULSE_DELAY_OPTIONS.some((option) => option.value === pulseDelayMs)
+    ? pulseDelayMs
+    : DEFAULT_AUTO_RUN_PULSE_DELAY_MS;
 }
 
 export type ConfigOption = {

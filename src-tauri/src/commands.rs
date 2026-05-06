@@ -149,6 +149,32 @@ pub(crate) fn start_autofire(
 }
 
 #[tauri::command]
+pub(crate) fn start_auto_run(state: State<AppState>) -> Result<bool, String> {
+    tracing::debug!("请求启动一键奔跑引擎");
+    let settings = state.config_store.current().settings;
+    let mut auto_run = state.auto_run_runtime.lock();
+    auto_run.set_settings(
+        settings.auto_run_left_vk,
+        settings.auto_run_right_vk,
+        settings.auto_run_pulse_delay_ms,
+    );
+    auto_run.start()?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub(crate) fn stop_auto_run(state: State<AppState>) -> bool {
+    tracing::info!("请求停止一键奔跑引擎");
+    state.auto_run_runtime.lock().stop();
+    true
+}
+
+#[tauri::command]
+pub(crate) fn is_auto_run_running(state: State<AppState>) -> bool {
+    state.auto_run_runtime.lock().is_running()
+}
+
+#[tauri::command]
 pub(crate) fn start_assistant(
     keys: Vec<KeyBinding>,
     combos: Vec<ComboDefinition>,
@@ -168,7 +194,10 @@ pub(crate) fn start_assistant(
         );
         return Err(error);
     }
-    if keys.is_empty() && combos.is_empty() {
+    if keys.is_empty()
+        && combos.is_empty()
+        && !state.config_store.current().settings.auto_run_enabled
+    {
         state.assistant_runtime.stop();
         tracing::warn!("启动助手失败：运行时快照为空");
         return Err(EMPTY_ASSISTANT_PROFILE_ERROR.to_string());

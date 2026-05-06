@@ -8,12 +8,14 @@ use std::path::{Path, PathBuf};
 
 use parking_lot::Mutex;
 
-pub(crate) const CONFIG_VERSION: u32 = 7;
+pub(crate) const CONFIG_VERSION: u32 = 10;
 pub(crate) const DEFAULT_INTERVAL_MS: u16 = 20;
 pub(crate) const DEFAULT_DETECTION_INTERVAL_MS: u64 = 200;
+pub(crate) const DEFAULT_AUTO_RUN_PULSE_DELAY_MS: u64 = 25;
 const MIN_INTERVAL_MS: u16 = 10;
 const MAX_INTERVAL_MS: u16 = 1000;
 const DETECTION_INTERVAL_OPTIONS: [u64; 4] = [100, 200, 500, 1000];
+const AUTO_RUN_PULSE_DELAY_OPTIONS: [u64; 3] = [10, 25, 50];
 const MIN_COMBO_HOLD_MS: u16 = 10;
 const MAX_COMBO_HOLD_MS: u16 = 1000;
 const MAX_COMBO_GAP_MS: u16 = 1000;
@@ -200,7 +202,7 @@ impl std::fmt::Display for LogLevelSetting {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     #[serde(default)]
@@ -212,7 +214,31 @@ pub struct AppSettings {
     #[serde(default)]
     pub open_floating_control_on_start: bool,
     #[serde(default)]
+    pub auto_run_enabled: bool,
+    #[serde(default = "default_auto_run_left_vk")]
+    pub auto_run_left_vk: u16,
+    #[serde(default = "default_auto_run_right_vk")]
+    pub auto_run_right_vk: u16,
+    #[serde(default = "default_auto_run_pulse_delay_ms")]
+    pub auto_run_pulse_delay_ms: u64,
+    #[serde(default)]
     pub log_level: LogLevelSetting,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            launch_at_startup: false,
+            start_minimized: false,
+            minimize_to_tray: false,
+            open_floating_control_on_start: false,
+            auto_run_enabled: false,
+            auto_run_left_vk: default_auto_run_left_vk(),
+            auto_run_right_vk: default_auto_run_right_vk(),
+            auto_run_pulse_delay_ms: default_auto_run_pulse_delay_ms(),
+            log_level: LogLevelSetting::default(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -255,6 +281,18 @@ fn default_detection_interval_ms() -> u64 {
 
 fn default_detection_icon_database_version() -> String {
     "builtin-empty-v1".to_string()
+}
+
+fn default_auto_run_left_vk() -> u16 {
+    0x25
+}
+
+fn default_auto_run_right_vk() -> u16 {
+    0x27
+}
+
+fn default_auto_run_pulse_delay_ms() -> u64 {
+    DEFAULT_AUTO_RUN_PULSE_DELAY_MS
 }
 
 #[derive(Debug)]
@@ -336,9 +374,7 @@ fn normalize_active_config_id(
     config: &AppConfig,
     active_class_id: Option<String>,
 ) -> Option<String> {
-    let Some(active_class_id) = active_class_id else {
-        return None;
-    };
+    let active_class_id = active_class_id?;
     let active_class_id = active_class_id.trim().to_string();
     if active_class_id.is_empty() {
         return None;
@@ -418,6 +454,10 @@ fn default_config() -> AppConfig {
             start_minimized: false,
             minimize_to_tray: false,
             open_floating_control_on_start: false,
+            auto_run_enabled: false,
+            auto_run_left_vk: default_auto_run_left_vk(),
+            auto_run_right_vk: default_auto_run_right_vk(),
+            auto_run_pulse_delay_ms: default_auto_run_pulse_delay_ms(),
             log_level: LogLevelSetting::default(),
         },
     }
@@ -502,6 +542,7 @@ fn normalize_config(config: &mut AppConfig) {
         normalize_combos(&mut custom_config.combo_defs, config_id);
     }
     normalize_detection_settings(config, original_version);
+    normalize_app_settings(config);
     normalize_active_profile(config);
 }
 
@@ -514,6 +555,11 @@ fn normalize_detection_settings(config: &mut AppConfig, original_version: u32) {
     if config.detection.icon_database_version.trim().is_empty() {
         config.detection.icon_database_version = default_detection_icon_database_version();
     }
+}
+
+fn normalize_app_settings(config: &mut AppConfig) {
+    config.settings.auto_run_pulse_delay_ms =
+        normalize_auto_run_pulse_delay_ms(config.settings.auto_run_pulse_delay_ms);
 }
 
 fn normalize_combos(combos: &mut [ComboDefinition], owner_id: &str) {
@@ -611,6 +657,7 @@ fn is_legacy_profile_candidate(path: &Path) -> bool {
 pub(crate) fn validate_config(config: &AppConfig) -> Result<(), String> {
     validate_keys(&config.global_keys)?;
     validate_detection_settings(&config.detection)?;
+    validate_app_settings(&config.settings)?;
     for class_config in config.classes.values() {
         validate_keys(&class_config.enabled_keys)?;
         let effective_keys = effective_keys_for_profile(
@@ -633,6 +680,10 @@ pub(crate) fn validate_config(config: &AppConfig) -> Result<(), String> {
         validate_combo_defs(&custom_config.combo_defs, &effective_keys)?;
     }
     Ok(())
+}
+
+pub(crate) fn validate_app_settings(settings: &AppSettings) -> Result<(), String> {
+    validate_auto_run_pulse_delay_ms(settings.auto_run_pulse_delay_ms)
 }
 
 pub(crate) fn validate_detection_settings(settings: &DetectionSettings) -> Result<(), String> {
@@ -663,6 +714,31 @@ pub(crate) fn normalize_detection_interval_ms(value: u64) -> u64 {
 
 fn is_supported_detection_interval(value: u64) -> bool {
     DETECTION_INTERVAL_OPTIONS.contains(&value)
+}
+
+pub(crate) fn validate_auto_run_pulse_delay_ms(pulse_delay_ms: u64) -> Result<(), String> {
+    if is_supported_auto_run_pulse_delay(pulse_delay_ms) {
+        return Ok(());
+    }
+
+    Err(format!(
+        "一键奔跑脉冲间隔只能是 {} / {} / {} 毫秒",
+        AUTO_RUN_PULSE_DELAY_OPTIONS[0],
+        AUTO_RUN_PULSE_DELAY_OPTIONS[1],
+        AUTO_RUN_PULSE_DELAY_OPTIONS[2]
+    ))
+}
+
+pub(crate) fn normalize_auto_run_pulse_delay_ms(value: u64) -> u64 {
+    if is_supported_auto_run_pulse_delay(value) {
+        value
+    } else {
+        DEFAULT_AUTO_RUN_PULSE_DELAY_MS
+    }
+}
+
+fn is_supported_auto_run_pulse_delay(value: u64) -> bool {
+    AUTO_RUN_PULSE_DELAY_OPTIONS.contains(&value)
 }
 
 pub(crate) fn validate_keys(keys: &[KeyBinding]) -> Result<(), String> {
@@ -988,6 +1064,43 @@ mod tests {
         assert!(validate_config(&config)
             .unwrap_err()
             .contains("职业识别间隔只能是"));
+    }
+
+    #[test]
+    fn validate_config_rejects_invalid_auto_run_pulse_delay() {
+        let mut config = minimal_config();
+        config.settings.auto_run_pulse_delay_ms = 30;
+
+        assert!(validate_config(&config)
+            .unwrap_err()
+            .contains("一键奔跑脉冲间隔只能是"));
+    }
+
+    #[test]
+    fn load_config_normalizes_auto_run_pulse_delay() {
+        let dir = unique_temp_dir("auto-run-pulse-delay");
+        fs::write(
+            dir.join("app-config.json"),
+            r#"{
+                "version":10,
+                "globalKeys":[],
+                "comboDefs":[],
+                "classes":{},
+                "customConfigs":{},
+                "hiddenClassIds":[],
+                "activeClassId":null,
+                "toggleHotkey":null,
+                "detection":{"enabled":false,"intervalMs":200,"noMatchPolicy":"current","iconDatabaseVersion":"builtin-empty-v1"},
+                "settings":{"autoRunPulseDelayMs":30}
+            }"#,
+        )
+        .unwrap();
+
+        let config = load_config_from_path(&dir.join("app-config.json"));
+
+        assert_eq!(config.settings.auto_run_pulse_delay_ms, 25);
+
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

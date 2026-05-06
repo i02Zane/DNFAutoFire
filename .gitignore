@@ -57,3 +57,5 @@ Desktop.ini
 *.sw?
 
 dnf_detect
+
+*.ahk

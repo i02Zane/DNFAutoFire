@@ -1,6 +1,7 @@
 // 主窗口入口：负责配置编辑、连发运行状态，以及托盘和悬浮窗的状态同步。
 import {
   CircleHelp,
+  Footprints,
   Keyboard,
   ListChecks,
   Play,
@@ -44,6 +45,7 @@ import {
   isClassVisible,
   isCustomConfigId,
   normalizeDetectionIntervalMs,
+  normalizeAutoRunPulseDelayMs,
   validateClassComboDefs,
 } from "./lib/config";
 import { FLOATING_CONTROL_VIEW } from "./lib/floating-control";
@@ -62,6 +64,7 @@ import {
   tauriCommands,
 } from "./lib/tauri";
 import { AboutPage } from "./pages/about-page";
+import { AutoRunPage } from "./pages/auto-run-page";
 import { ConfigManagementPage } from "./pages/config-management-page";
 import { SettingsPage } from "./pages/settings-page";
 import type { EditTarget, Page } from "./types/ui";
@@ -184,7 +187,8 @@ function MainApp() {
   });
   const { launchAtStartup, minimizeToTray, openFloatingControlOnStart, startMinimized } =
     config.settings;
-  const { logLevel } = config.settings;
+  const { autoRunEnabled, autoRunLeftVk, autoRunPulseDelayMs, autoRunRightVk, logLevel } =
+    config.settings;
   const {
     enabled: detectionEnabled,
     intervalMs: detectionIntervalMs,
@@ -257,6 +261,10 @@ function MainApp() {
     setRunning,
     showMessage,
     startupConfigLoaded,
+    autoRunEnabled,
+    autoRunLeftVk,
+    autoRunPulseDelayMs,
+    autoRunRightVk,
     toggleHotkey: config.toggleHotkey,
   });
 
@@ -589,6 +597,12 @@ function MainApp() {
               label="一键连招(Beta)"
               onClick={() => changePage("combo")}
             />
+            <NavButton
+              active={page === "auto-run"}
+              icon={<Footprints size={18} />}
+              label="一键奔跑"
+              onClick={() => changePage("auto-run")}
+            />
           </nav>
 
           <div className="mt-auto space-y-2">
@@ -791,6 +805,21 @@ function MainApp() {
                 selectedConfigId={comboClassId}
                 onCombosChange={updateProfileCombos}
                 onSelectedConfigIdChange={(configId) => setComboClassId(configId)}
+              />
+            ) : page === "auto-run" ? (
+              <AutoRunPage
+                autoRunEnabled={autoRunEnabled}
+                autoRunLeftVk={autoRunLeftVk}
+                autoRunPulseDelayMs={autoRunPulseDelayMs}
+                autoRunRightVk={autoRunRightVk}
+                onAutoRunEnabledChange={(checked) => updateSettings({ autoRunEnabled: checked })}
+                onAutoRunLeftVkChange={(vk) => updateSettings({ autoRunLeftVk: vk })}
+                onAutoRunPulseDelayChange={(pulseDelayMs) =>
+                  updateSettings({
+                    autoRunPulseDelayMs: normalizeAutoRunPulseDelayMs(pulseDelayMs),
+                  })
+                }
+                onAutoRunRightVkChange={(vk) => updateSettings({ autoRunRightVk: vk })}
               />
             ) : page === "config-management" ? (
               <ConfigManagementPage

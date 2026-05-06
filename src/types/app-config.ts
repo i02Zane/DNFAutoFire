@@ -89,6 +89,10 @@ export type AppSettings = {
   startMinimized: boolean;
   minimizeToTray: boolean;
   openFloatingControlOnStart: boolean;
+  autoRunEnabled: boolean;
+  autoRunLeftVk: number;
+  autoRunRightVk: number;
+  autoRunPulseDelayMs: number;
   logLevel: LogLevelSetting;
 };
 

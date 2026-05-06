@@ -1,7 +1,7 @@
 //! 助手运行时：统一管理当前生效快照、启动/停止、热键切换和失败回滚。
 
-use crate::config::{ComboDefinition, KeyBinding};
-use crate::core::{AutoFireEngine, ComboEngine, FireKeyConfig};
+use crate::config::{AppConfigStore, ComboDefinition, KeyBinding};
+use crate::core::{AutoFireEngine, AutoRunEngine, ComboEngine, FireKeyConfig};
 use parking_lot::Mutex;
 use std::sync::Arc;
 
@@ -33,6 +33,8 @@ impl Default for AssistantProfile {
 pub(crate) struct AssistantRuntime {
     engine: Arc<Mutex<AutoFireEngine>>,
     combo_engine: Arc<Mutex<ComboEngine>>,
+    auto_run_runtime: Arc<Mutex<AutoRunEngine>>,
+    config_store: Arc<AppConfigStore>,
     profile: Arc<Mutex<AssistantProfile>>,
 }
 
@@ -40,10 +42,14 @@ impl AssistantRuntime {
     pub(crate) fn new(
         engine: Arc<Mutex<AutoFireEngine>>,
         combo_engine: Arc<Mutex<ComboEngine>>,
+        auto_run_runtime: Arc<Mutex<AutoRunEngine>>,
+        config_store: Arc<AppConfigStore>,
     ) -> Self {
         Self {
             engine,
             combo_engine,
+            auto_run_runtime,
+            config_store,
             profile: Arc::new(Mutex::new(AssistantProfile::default())),
         }
     }
@@ -68,13 +74,14 @@ impl AssistantRuntime {
                 "运行中刷新运行时快照"
             );
             self.apply_profile(profile)?;
+            self.sync_auto_run()?;
         }
         Ok(())
     }
 
     pub(crate) fn start_with_profile(&self, profile: AssistantProfile) -> Result<(), String> {
-        if profile.is_empty() {
-            tracing::warn!("尝试启动助手，但当前运行时快照为空");
+        if profile.is_empty() && !self.config_store.current().settings.auto_run_enabled {
+            tracing::warn!("尝试启动助手，但当前运行时快照为空且一键奔跑未启用");
             self.stop();
             return Err(EMPTY_ASSISTANT_PROFILE_ERROR.to_string());
         }
@@ -82,10 +89,14 @@ impl AssistantRuntime {
         tracing::info!(
             key_count = profile.keys.len(),
             combo_count = profile.combos.len(),
+            auto_run = self.config_store.current().settings.auto_run_enabled,
             "启动助手"
         );
         self.store_runtime_profile(profile.clone());
-        self.apply_profile(profile)
+        self.apply_profile(profile)?;
+        self.sync_auto_run()?;
+
+        Ok(())
     }
 
     pub(crate) fn toggle_from_runtime_profile(&self) -> Result<(), String> {
@@ -105,7 +116,7 @@ impl AssistantRuntime {
     }
 
     pub(crate) fn stop(&self) {
-        let was_running = self.is_running();
+        let was_running = self.is_running() || self.auto_run_runtime.lock().is_running();
         if was_running {
             tracing::info!("停止助手");
         } else {
@@ -113,10 +124,13 @@ impl AssistantRuntime {
         }
         self.engine.lock().stop();
         self.combo_engine.lock().stop();
+        self.auto_run_runtime.lock().stop();
     }
 
     pub(crate) fn is_running(&self) -> bool {
-        self.engine.lock().is_running() || self.combo_engine.lock().is_running()
+        self.engine.lock().is_running()
+            || self.combo_engine.lock().is_running()
+            || self.auto_run_runtime.lock().is_running()
     }
 
     fn store_runtime_profile(&self, profile: AssistantProfile) {
@@ -163,6 +177,27 @@ impl AssistantRuntime {
         }
 
         tracing::info!("运行时快照已生效");
+        Ok(())
+    }
+
+    fn sync_auto_run(&self) -> Result<(), String> {
+        let settings = self.config_store.current().settings;
+        let mut auto_run = self.auto_run_runtime.lock();
+        auto_run.set_settings(
+            settings.auto_run_left_vk,
+            settings.auto_run_right_vk,
+            settings.auto_run_pulse_delay_ms,
+        );
+        if settings.auto_run_enabled {
+            if let Err(error) = auto_run.start() {
+                tracing::warn!(error = %error, "启动一键奔跑失败");
+                drop(auto_run);
+                self.stop();
+                return Err(error);
+            }
+        } else {
+            auto_run.stop();
+        }
         Ok(())
     }
 }

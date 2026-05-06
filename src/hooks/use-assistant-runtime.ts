@@ -8,6 +8,10 @@ import {
 } from "../lib/tauri";
 
 type UseAssistantRuntimeOptions = {
+  autoRunEnabled: boolean;
+  autoRunLeftVk: number;
+  autoRunPulseDelayMs: number;
+  autoRunRightVk: number;
   currentConfigLabel: string;
   effectiveCombos: ComboDefinition[];
   effectiveKeys: KeyBinding[];
@@ -19,6 +23,10 @@ type UseAssistantRuntimeOptions = {
 };
 
 export function useAssistantRuntime({
+  autoRunEnabled,
+  autoRunLeftVk,
+  autoRunPulseDelayMs,
+  autoRunRightVk,
   currentConfigLabel,
   effectiveCombos,
   effectiveKeys,
@@ -56,7 +64,18 @@ export function useAssistantRuntime({
       setRunning(false);
       showMessage(reason instanceof Error ? reason.message : String(reason));
     });
-  }, [effectiveCombos, effectiveKeys, running, setRunning, showMessage, startupConfigLoaded]);
+  }, [
+    autoRunEnabled,
+    autoRunLeftVk,
+    autoRunPulseDelayMs,
+    autoRunRightVk,
+    effectiveCombos,
+    effectiveKeys,
+    running,
+    setRunning,
+    showMessage,
+    startupConfigLoaded,
+  ]);
 
   useEffect(() => {
     if (!startupConfigLoaded) return;
@@ -65,7 +84,16 @@ export function useAssistantRuntime({
     void tauriCommands.setRuntimeProfile(effectiveKeys, effectiveCombos).catch((reason) => {
       showMessage(reason instanceof Error ? reason.message : String(reason));
     });
-  }, [effectiveCombos, effectiveKeys, showMessage, startupConfigLoaded]);
+  }, [
+    autoRunEnabled,
+    autoRunLeftVk,
+    autoRunPulseDelayMs,
+    autoRunRightVk,
+    effectiveCombos,
+    effectiveKeys,
+    showMessage,
+    startupConfigLoaded,
+  ]);
 
   useEffect(() => {
     if (!startupConfigLoaded) return;

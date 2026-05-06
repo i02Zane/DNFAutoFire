@@ -10,7 +10,7 @@ const mockClassCategories: ClassCategory[] = [
 ];
 
 let mockConfig: AppConfig = {
-  version: 7,
+  version: 10,
   globalKeys: [{ vk: 0x58, intervalMs: 20 }],
   comboDefs: [],
   classes: {
@@ -55,6 +55,10 @@ let mockConfig: AppConfig = {
     startMinimized: false,
     minimizeToTray: false,
     openFloatingControlOnStart: false,
+    autoRunEnabled: false,
+    autoRunLeftVk: 0x25,
+    autoRunRightVk: 0x27,
+    autoRunPulseDelayMs: 25,
     logLevel: "debug",
   },
 };
@@ -115,6 +119,12 @@ export async function mockInvoke<T>(name: string, args?: Record<string, unknown>
     case "stop_autofire":
       mockRunning = false;
       return true as T;
+    case "start_auto_run":
+      return true as T;
+    case "stop_auto_run":
+      return true as T;
+    case "is_auto_run_running":
+      return false as T;
     case "start_detection":
       return true as T;
     case "stop_detection":

@@ -1,7 +1,7 @@
 //! 后端共享状态：Tauri 命令、托盘回调和全局快捷键线程都从这里取状态。
 use crate::assistant::AssistantRuntime;
 use crate::config::AppConfigStore;
-use crate::core::{AutoFireEngine, ComboEngine, DetectionRuntime};
+use crate::core::{AutoFireEngine, AutoRunEngine, ComboEngine, DetectionRuntime};
 use crate::hotkey::HotkeyRegistration;
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -10,6 +10,8 @@ use tauri::menu::MenuItem;
 pub struct AppState {
     /// 连发引擎实例，所有启动/停止入口最终都操作这一份状态。
     pub(crate) engine: Arc<Mutex<AutoFireEngine>>,
+    /// 一键奔跑运行时，懒加载后端钩子与工作线程。
+    pub(crate) auto_run_runtime: Arc<Mutex<AutoRunEngine>>,
     /// 助手运行时，统一收拢当前生效快照、启动/停止和失败回滚。
     pub(crate) assistant_runtime: AssistantRuntime,
     /// 职业识别运行时，按开关懒加载并复用同一份后端线程。
@@ -26,13 +28,20 @@ pub struct AppState {
 impl AppState {
     pub(crate) fn new() -> Self {
         let engine = Arc::new(Mutex::new(AutoFireEngine::new()));
+        let auto_run_runtime = Arc::new(Mutex::new(AutoRunEngine::new()));
         let combo_engine = Arc::new(Mutex::new(ComboEngine::new()));
-        let assistant_runtime = AssistantRuntime::new(engine.clone(), combo_engine);
         let config_store = Arc::new(AppConfigStore::new());
+        let assistant_runtime = AssistantRuntime::new(
+            engine.clone(),
+            combo_engine,
+            auto_run_runtime.clone(),
+            config_store.clone(),
+        );
         let detection_runtime = Arc::new(Mutex::new(DetectionRuntime::new(config_store.clone())));
 
         Self {
             engine,
+            auto_run_runtime,
             assistant_runtime,
             detection_runtime,
             config_store,
