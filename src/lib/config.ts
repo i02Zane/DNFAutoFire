@@ -44,8 +44,8 @@ export const DETECTION_NO_MATCH_POLICY_OPTIONS: {
 ];
 
 export const DEFAULT_CONFIG: AppConfig = {
-  version: 10,
-  globalKeys: [{ vk: 0x58, intervalMs: 20 }],
+  version: 11,
+  globalKeys: [{ vk: 0x58, intervalMs: 20, mode: "hold" }],
   comboDefs: [],
   classes: {},
   customConfigs: {},

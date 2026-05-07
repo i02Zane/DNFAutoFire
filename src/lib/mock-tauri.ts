@@ -10,16 +10,16 @@ const mockClassCategories: ClassCategory[] = [
 ];
 
 let mockConfig: AppConfig = {
-  version: 10,
-  globalKeys: [{ vk: 0x58, intervalMs: 20 }],
+  version: 11,
+  globalKeys: [{ vk: 0x58, intervalMs: 20, mode: "hold" }],
   comboDefs: [],
   classes: {
     male_slayer_blade_master: {
       enabledKeys: [
-        { vk: 0x41, intervalMs: 20 },
-        { vk: 0x53, intervalMs: 20 },
-        { vk: 0x44, intervalMs: 15 },
-        { vk: 0x46, intervalMs: 20 },
+        { vk: 0x41, intervalMs: 20, mode: "hold" },
+        { vk: 0x53, intervalMs: 20, mode: "hold" },
+        { vk: 0x44, intervalMs: 15, mode: "hold" },
+        { vk: 0x46, intervalMs: 20, mode: "hold" },
       ],
       effectRule: "globalAndClass",
       comboDefs: [
@@ -36,7 +36,7 @@ let mockConfig: AppConfig = {
   customConfigs: {
     "custom-mock-light-sword": {
       name: "剑魂光剑套",
-      enabledKeys: [{ vk: 0x51, intervalMs: 30 }],
+      enabledKeys: [{ vk: 0x51, intervalMs: 30, mode: "hold" }],
       effectRule: "globalAndClass",
       comboDefs: [],
     },

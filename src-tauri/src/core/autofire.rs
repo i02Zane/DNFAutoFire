@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
+use crate::config::FireKeyMode;
 use crate::logging::format_vk;
 
 #[cfg(windows)]
@@ -20,14 +21,17 @@ type PressedKeyBits = [AtomicU64; PRESSED_KEY_SLOT_COUNT];
 pub struct FireKeyConfig {
     pub vk: u16,
     pub interval_ms: u16,
+    pub mode: FireKeyMode,
 }
 
 pub struct AutoFireEngine {
     enabled: Arc<AtomicBool>,
     configured_keys: Arc<RwLock<HashSet<u16>>>,
     key_intervals: Arc<RwLock<HashMap<u16, u64>>>,
+    key_modes: Arc<RwLock<HashMap<u16, FireKeyMode>>>,
     // VK 码范围超过 64，拆成多个 AtomicU64 槽位可避免锁住键盘钩子回调。
     pressed_keys: Arc<PressedKeyBits>,
+    toggle_active_keys: Arc<PressedKeyBits>,
     #[cfg(windows)]
     platform: windows_impl::WindowsAutoFire,
 }
@@ -38,6 +42,7 @@ impl std::fmt::Debug for AutoFireEngine {
             .field("enabled", &self.enabled.load(Ordering::SeqCst))
             .field("configured_keys", &*self.configured_keys.read())
             .field("key_intervals", &*self.key_intervals.read())
+            .field("key_modes", &*self.key_modes.read())
             .finish()
     }
 }
@@ -48,7 +53,9 @@ impl AutoFireEngine {
             enabled: Arc::new(AtomicBool::new(false)),
             configured_keys: Arc::new(RwLock::new(HashSet::new())),
             key_intervals: Arc::new(RwLock::new(HashMap::new())),
+            key_modes: Arc::new(RwLock::new(HashMap::new())),
             pressed_keys: Arc::new(std::array::from_fn(|_| AtomicU64::new(0))),
+            toggle_active_keys: Arc::new(std::array::from_fn(|_| AtomicU64::new(0))),
             #[cfg(windows)]
             platform: windows_impl::WindowsAutoFire::new(),
         }
@@ -61,6 +68,7 @@ impl AutoFireEngine {
             .map(|vk| FireKeyConfig {
                 vk,
                 interval_ms: 33,
+                mode: FireKeyMode::Hold,
             })
             .collect();
         self.set_key_configs(keys);
@@ -70,14 +78,22 @@ impl AutoFireEngine {
         tracing::info!(key_count = keys.len(), "更新连发按键快照");
         let mut configured = self.configured_keys.write();
         let mut intervals = self.key_intervals.write();
+        let mut modes = self.key_modes.write();
+        let mut toggle_keys = HashSet::new();
 
         // 运行中修改配置时直接替换共享集合，连发线程下一轮循环即可看到新配置。
         configured.clear();
         intervals.clear();
+        modes.clear();
         for key in keys {
             configured.insert(key.vk);
             intervals.insert(key.vk, key.interval_ms as u64);
+            modes.insert(key.vk, key.mode);
+            if key.mode == FireKeyMode::Toggle {
+                toggle_keys.insert(key.vk);
+            }
         }
+        retain_pressed_keys(&self.toggle_active_keys, &toggle_keys);
     }
 
     pub fn start(&mut self) -> Result<(), String> {
@@ -91,13 +107,16 @@ impl AutoFireEngine {
             "启动连发引擎"
         );
         clear_pressed_keys(&self.pressed_keys);
+        clear_pressed_keys(&self.toggle_active_keys);
 
         #[cfg(windows)]
         self.platform.start(
             self.enabled.clone(),
             self.configured_keys.clone(),
             self.key_intervals.clone(),
+            self.key_modes.clone(),
             self.pressed_keys.clone(),
+            self.toggle_active_keys.clone(),
         )?;
         self.enabled.store(true, Ordering::SeqCst);
         Ok(())
@@ -111,6 +130,8 @@ impl AutoFireEngine {
         }
         #[cfg(windows)]
         self.platform.stop();
+        clear_pressed_keys(&self.pressed_keys);
+        clear_pressed_keys(&self.toggle_active_keys);
     }
 
     #[allow(dead_code)]
@@ -122,6 +143,19 @@ impl AutoFireEngine {
 fn clear_pressed_keys(pressed_keys: &PressedKeyBits) {
     for slot in pressed_keys {
         slot.store(0, Ordering::SeqCst);
+    }
+}
+
+fn retain_pressed_keys(pressed_keys: &PressedKeyBits, retained_vks: &HashSet<u16>) {
+    let mut retained_masks = [0u64; PRESSED_KEY_SLOT_COUNT];
+    for &vk in retained_vks {
+        if let Some((slot_index, key_bit)) = vk_to_slot_bit(vk) {
+            retained_masks[slot_index] |= key_bit;
+        }
+    }
+
+    for (slot, retained_mask) in pressed_keys.iter().zip(retained_masks) {
+        slot.fetch_and(retained_mask, Ordering::SeqCst);
     }
 }
 
@@ -141,6 +175,19 @@ fn pressed_key_snapshot_contains(
     snapshot
         .get(slot_index)
         .is_some_and(|slot| slot & key_bit != 0)
+}
+
+fn fire_key_is_active(
+    mode: FireKeyMode,
+    pressed_snapshot: &[u64; PRESSED_KEY_SLOT_COUNT],
+    toggle_snapshot: &[u64; PRESSED_KEY_SLOT_COUNT],
+    slot_index: usize,
+    key_bit: u64,
+) -> bool {
+    match mode {
+        FireKeyMode::Hold => pressed_key_snapshot_contains(pressed_snapshot, slot_index, key_bit),
+        FireKeyMode::Toggle => pressed_key_snapshot_contains(toggle_snapshot, slot_index, key_bit),
+    }
 }
 
 fn vk_to_slot_bit(vk: u16) -> Option<(usize, u64)> {
@@ -196,6 +243,69 @@ mod tests {
             &snapshot, num2_slot, num2_bit
         ));
     }
+
+    #[test]
+    fn fire_key_active_state_uses_configured_mode() {
+        let pressed_keys: PressedKeyBits = std::array::from_fn(|_| AtomicU64::new(0));
+        let toggle_active_keys: PressedKeyBits = std::array::from_fn(|_| AtomicU64::new(0));
+        let (slot_index, key_bit) = vk_to_slot_bit(0x58).unwrap();
+
+        pressed_keys[slot_index].store(key_bit, Ordering::SeqCst);
+        let pressed = pressed_key_snapshot(&pressed_keys);
+        let toggle_active = pressed_key_snapshot(&toggle_active_keys);
+
+        assert!(fire_key_is_active(
+            FireKeyMode::Hold,
+            &pressed,
+            &toggle_active,
+            slot_index,
+            key_bit
+        ));
+        assert!(!fire_key_is_active(
+            FireKeyMode::Toggle,
+            &pressed,
+            &toggle_active,
+            slot_index,
+            key_bit
+        ));
+
+        pressed_keys[slot_index].store(0, Ordering::SeqCst);
+        toggle_active_keys[slot_index].store(key_bit, Ordering::SeqCst);
+        let pressed = pressed_key_snapshot(&pressed_keys);
+        let toggle_active = pressed_key_snapshot(&toggle_active_keys);
+
+        assert!(!fire_key_is_active(
+            FireKeyMode::Hold,
+            &pressed,
+            &toggle_active,
+            slot_index,
+            key_bit
+        ));
+        assert!(fire_key_is_active(
+            FireKeyMode::Toggle,
+            &pressed,
+            &toggle_active,
+            slot_index,
+            key_bit
+        ));
+    }
+
+    #[test]
+    fn retain_pressed_keys_keeps_only_configured_toggle_keys() {
+        let pressed_keys: PressedKeyBits = std::array::from_fn(|_| AtomicU64::new(0));
+        let (x_slot, x_bit) = vk_to_slot_bit(0x58).unwrap();
+        let (num8_slot, num8_bit) = vk_to_slot_bit(0x68).unwrap();
+        pressed_keys[x_slot].fetch_or(x_bit, Ordering::SeqCst);
+        pressed_keys[num8_slot].fetch_or(num8_bit, Ordering::SeqCst);
+
+        retain_pressed_keys(&pressed_keys, &HashSet::from([0x68]));
+        let snapshot = pressed_key_snapshot(&pressed_keys);
+
+        assert!(!pressed_key_snapshot_contains(&snapshot, x_slot, x_bit));
+        assert!(pressed_key_snapshot_contains(
+            &snapshot, num8_slot, num8_bit
+        ));
+    }
 }
 
 #[cfg(windows)]
@@ -208,7 +318,7 @@ mod windows_impl {
     use super::super::keyboard::KeyboardDriver;
 
     const KEY_HOLD_MS: u64 = 8;
-    const LOOP_SLEEP_MS: u64 = 1;
+    const SEND_STATS_LOG_INTERVAL: Duration = Duration::from_secs(1);
 
     pub struct WindowsAutoFire {
         thread_handle: Option<JoinHandle<()>>,
@@ -228,7 +338,9 @@ mod windows_impl {
             enabled: Arc<AtomicBool>,
             configured_keys: Arc<RwLock<HashSet<u16>>>,
             key_intervals: Arc<RwLock<HashMap<u16, u64>>>,
+            key_modes: Arc<RwLock<HashMap<u16, FireKeyMode>>>,
             pressed_keys: Arc<PressedKeyBits>,
+            toggle_active_keys: Arc<PressedKeyBits>,
         ) -> Result<(), String> {
             if self.thread_handle.is_some() {
                 return Ok(());
@@ -243,12 +355,16 @@ mod windows_impl {
                 {
                     let enabled = enabled.clone();
                     let configured_keys = configured_keys.clone();
+                    let key_modes = key_modes.clone();
                     let pressed_keys = pressed_keys.clone();
+                    let toggle_active_keys = toggle_active_keys.clone();
                     move || {
                         HOOK_ENABLED.store(true, Ordering::SeqCst);
                         *HOOK_PRESSED_KEYS.write() = Some(pressed_keys);
+                        *HOOK_TOGGLE_ACTIVE_KEYS.write() = Some(toggle_active_keys);
                         *HOOK_ENABLED_FLAG.write() = Some(enabled);
                         *HOOK_CONFIGURED_KEYS_REF.write() = Some(configured_keys);
+                        *HOOK_KEY_MODES_REF.write() = Some(key_modes);
                     }
                 },
                 || {
@@ -265,7 +381,9 @@ mod windows_impl {
                     enabled,
                     configured_keys,
                     key_intervals,
+                    key_modes,
                     pressed_keys,
+                    toggle_active_keys,
                     fire_stop_signal,
                 );
             });
@@ -289,11 +407,17 @@ mod windows_impl {
     static HOOK_ENABLED: AtomicBool = AtomicBool::new(false);
     static HOOK_PRESSED_KEYS: once_cell::sync::Lazy<RwLock<Option<Arc<PressedKeyBits>>>> =
         once_cell::sync::Lazy::new(|| RwLock::new(None));
+    static HOOK_TOGGLE_ACTIVE_KEYS: once_cell::sync::Lazy<RwLock<Option<Arc<PressedKeyBits>>>> =
+        once_cell::sync::Lazy::new(|| RwLock::new(None));
     static HOOK_ENABLED_FLAG: once_cell::sync::Lazy<RwLock<Option<Arc<AtomicBool>>>> =
         once_cell::sync::Lazy::new(|| RwLock::new(None));
     #[allow(clippy::type_complexity)]
     static HOOK_CONFIGURED_KEYS_REF: once_cell::sync::Lazy<
         RwLock<Option<Arc<RwLock<HashSet<u16>>>>>,
+    > = once_cell::sync::Lazy::new(|| RwLock::new(None));
+    #[allow(clippy::type_complexity)]
+    static HOOK_KEY_MODES_REF: once_cell::sync::Lazy<
+        RwLock<Option<Arc<RwLock<HashMap<u16, FireKeyMode>>>>>,
     > = once_cell::sync::Lazy::new(|| RwLock::new(None));
 
     unsafe extern "system" fn keyboard_hook_proc(
@@ -320,6 +444,20 @@ mod windows_impl {
                                 vk = %format_vk(event.vk),
                                 "记录连发物理按键按下"
                             );
+
+                            if key_mode(event.vk) == FireKeyMode::Toggle {
+                                let toggle_keys = HOOK_TOGGLE_ACTIVE_KEYS.read();
+                                if let Some(ref toggle_keys) = *toggle_keys {
+                                    let toggle_slot = &toggle_keys[slot_index];
+                                    let old_toggle =
+                                        toggle_slot.fetch_xor(key_bit, Ordering::SeqCst);
+                                    tracing::debug!(
+                                        vk = %format_vk(event.vk),
+                                        active = old_toggle & key_bit == 0,
+                                        "单击连发状态"
+                                    );
+                                }
+                            }
                         }
                     }
 
@@ -353,11 +491,21 @@ mod windows_impl {
             .unwrap_or(false)
     }
 
+    fn key_mode(vk: u16) -> FireKeyMode {
+        HOOK_KEY_MODES_REF
+            .read()
+            .as_ref()
+            .and_then(|modes| modes.read().get(&vk).copied())
+            .unwrap_or_default()
+    }
+
     fn autofire_loop(
         enabled: Arc<AtomicBool>,
         configured_keys: Arc<RwLock<HashSet<u16>>>,
         key_intervals: Arc<RwLock<HashMap<u16, u64>>>,
+        key_modes: Arc<RwLock<HashMap<u16, FireKeyMode>>>,
         pressed_keys: Arc<PressedKeyBits>,
+        toggle_active_keys: Arc<PressedKeyBits>,
         stop_signal: Arc<AtomicBool>,
     ) {
         tracing::info!("连发线程已启动");
@@ -366,73 +514,143 @@ mod windows_impl {
         let keyboard = WindowsKeyboardDriver::new();
         let window = WindowsWindowDetector::new();
         let mut next_fire_at: HashMap<u16, Instant> = HashMap::new();
+        let mut pending_key_ups: HashMap<u16, (u16, Instant)> = HashMap::new();
+        let mut send_counts: HashMap<u16, u64> = HashMap::new();
+        let mut send_stats_started_at = Instant::now();
+        let mut draining = false;
 
         loop {
             if stop_signal.load(Ordering::SeqCst) {
+                draining = true;
+            }
+
+            let now = Instant::now();
+            if now.duration_since(send_stats_started_at) >= SEND_STATS_LOG_INTERVAL {
+                log_send_stats(send_stats_started_at, now, &send_counts);
+                send_counts.clear();
+                send_stats_started_at = now;
+            }
+
+            let due_up_keys: Vec<u16> = pending_key_ups
+                .iter()
+                .filter_map(|(&vk, &(_, due_at))| (due_at <= now).then_some(vk))
+                .collect();
+            for vk in due_up_keys {
+                if let Some((sc, _)) = pending_key_ups.remove(&vk) {
+                    keyboard.send_game_key_up(vk, sc);
+                }
+            }
+
+            if stop_signal.load(Ordering::SeqCst) && pending_key_ups.is_empty() {
                 break;
             }
 
             if !enabled.load(Ordering::SeqCst) {
                 next_fire_at.clear();
-                thread::sleep(Duration::from_millis(10));
+                let sleep_for =
+                    next_pending_delay(None, pending_key_ups.values().map(|&(_, due_at)| due_at));
+                sleep_for_pending_ups(sleep_for, Duration::from_millis(10));
                 continue;
             }
 
             if !window.is_target_active() {
                 log_waiting_window(&window);
                 next_fire_at.clear();
-                thread::sleep(Duration::from_millis(50));
+                let sleep_for =
+                    next_pending_delay(None, pending_key_ups.values().map(|&(_, due_at)| due_at));
+                sleep_for_pending_ups(sleep_for, Duration::from_millis(50));
                 continue;
             }
 
-            let keys_with_sc: Vec<(u16, u16, usize, u64, u64)> = {
+            if draining {
+                let sleep_for =
+                    next_pending_delay(None, pending_key_ups.values().map(|&(_, due_at)| due_at));
+                sleep_for_pending_ups(sleep_for, Duration::from_millis(1));
+                continue;
+            }
+
+            let keys_with_sc: Vec<(u16, u16, usize, u64, u64, FireKeyMode)> = {
                 let configured = configured_keys.read();
                 let intervals = key_intervals.read();
+                let modes = key_modes.read();
                 configured
                     .iter()
                     .filter_map(|&vk| {
                         let sc = keyboard.vk_to_scan_code(vk);
                         let (slot_index, bit) = vk_to_slot_bit(vk)?;
                         let interval = intervals.get(&vk).copied().unwrap_or(33);
-                        Some((vk, sc, slot_index, bit, interval))
+                        let mode = modes.get(&vk).copied().unwrap_or_default();
+                        Some((vk, sc, slot_index, bit, interval, mode))
                     })
                     .collect()
             };
 
             let pressed = pressed_key_snapshot(&pressed_keys);
-            if pressed_key_snapshot_has_any(&pressed) {
+            let toggle_active = pressed_key_snapshot(&toggle_active_keys);
+            if pressed_key_snapshot_has_any(&pressed)
+                || pressed_key_snapshot_has_any(&toggle_active)
+            {
                 // 先抓快照再发送按键，避免发送过程中钩子状态被模拟输入反复改写。
-                let now = Instant::now();
                 next_fire_at.retain(|vk, _| {
-                    keys_with_sc.iter().any(|(key_vk, _, slot_index, bit, _)| {
-                        key_vk == vk && pressed_key_snapshot_contains(&pressed, *slot_index, *bit)
-                    })
+                    keys_with_sc
+                        .iter()
+                        .any(|(key_vk, _, slot_index, bit, _, mode)| {
+                            key_vk == vk
+                                && fire_key_is_active(
+                                    *mode,
+                                    &pressed,
+                                    &toggle_active,
+                                    *slot_index,
+                                    *bit,
+                                )
+                        })
                 });
 
-                for &(vk, sc, slot_index, bit, interval_ms) in &keys_with_sc {
-                    if !pressed_key_snapshot_contains(&pressed, slot_index, bit) {
+                let mut has_active_key = false;
+                let mut next_down_deadline: Option<Instant> = None;
+                for &(vk, sc, slot_index, bit, interval_ms, mode) in &keys_with_sc {
+                    if !fire_key_is_active(mode, &pressed, &toggle_active, slot_index, bit) {
                         continue;
                     }
-                    if stop_signal.load(Ordering::SeqCst) {
-                        break;
-                    }
-                    if next_fire_at
-                        .get(&vk)
-                        .is_some_and(|next_fire| now < *next_fire)
-                    {
+                    has_active_key = true;
+                    if let Some((_, due_at)) = pending_key_ups.get(&vk) {
+                        next_down_deadline = combine_deadline(next_down_deadline, Some(*due_at));
                         continue;
+                    }
+                    if let Some(next_fire_at_at) = next_fire_at.get(&vk).copied() {
+                        next_down_deadline =
+                            combine_deadline(next_down_deadline, Some(next_fire_at_at));
+                        if now < next_fire_at_at {
+                            continue;
+                        }
                     }
 
+                    let previous_fire_at = next_fire_at.get(&vk).copied();
                     let fire_started_at = Instant::now();
                     keyboard.send_game_key_down(vk, sc);
-                    thread::sleep(Duration::from_millis(KEY_HOLD_MS));
-                    keyboard.send_game_key_up(vk, sc);
-                    next_fire_at.insert(vk, fire_started_at + Duration::from_millis(interval_ms));
+                    *send_counts.entry(vk).or_default() += 1;
+                    pending_key_ups.insert(
+                        vk,
+                        (sc, fire_started_at + Duration::from_millis(KEY_HOLD_MS)),
+                    );
+                    next_fire_at.insert(
+                        vk,
+                        next_theoretical_fire_at(previous_fire_at, fire_started_at, interval_ms),
+                    );
+                    next_down_deadline =
+                        combine_deadline(next_down_deadline, next_fire_at.get(&vk).copied());
                 }
-                thread::sleep(Duration::from_millis(LOOP_SLEEP_MS));
+                if !has_active_key {
+                    next_fire_at.clear();
+                }
+                let next_up_deadline = pending_key_ups.values().map(|&(_, due_at)| due_at);
+                let sleep_for = next_pending_delay(next_down_deadline, next_up_deadline);
+                sleep_for_pending_ups(sleep_for, Duration::from_millis(1));
             } else {
                 next_fire_at.clear();
-                thread::sleep(Duration::from_millis(LOOP_SLEEP_MS));
+                let sleep_for =
+                    next_pending_delay(None, pending_key_ups.values().map(|&(_, due_at)| due_at));
+                sleep_for_pending_ups(sleep_for, Duration::from_millis(1));
             }
         }
 
@@ -455,6 +673,46 @@ mod windows_impl {
         }
     }
 
+    fn log_send_stats(started_at: Instant, ended_at: Instant, send_counts: &HashMap<u16, u64>) {
+        if send_counts.is_empty() {
+            return;
+        }
+
+        let total: u64 = send_counts.values().sum();
+        tracing::debug!(
+            total,
+            elapsed_ms = ended_at.duration_since(started_at).as_millis(),
+            counts = %format_send_counts(send_counts),
+            "按键连发发送统计"
+        );
+    }
+
+    fn format_send_counts(send_counts: &HashMap<u16, u64>) -> String {
+        let mut counts = send_counts
+            .iter()
+            .map(|(&vk, &count)| (vk, count))
+            .collect::<Vec<_>>();
+        counts.sort_by_key(|(vk, _)| *vk);
+        counts
+            .into_iter()
+            .map(|(vk, count)| format!("{}={count}", format_vk(vk)))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    fn next_theoretical_fire_at(
+        previous_fire_at: Option<Instant>,
+        fire_started_at: Instant,
+        interval_ms: u64,
+    ) -> Instant {
+        let interval = Duration::from_millis(interval_ms);
+        let mut next_fire_at = previous_fire_at.unwrap_or(fire_started_at) + interval;
+        while next_fire_at <= fire_started_at {
+            next_fire_at += interval;
+        }
+        next_fire_at
+    }
+
     fn set_timer_resolution(high_precision: bool) {
         use windows::Win32::Media::{timeBeginPeriod, timeEndPeriod};
         unsafe {
@@ -473,6 +731,33 @@ mod windows_impl {
         unsafe {
             let thread = GetCurrentThread();
             let _ = SetThreadPriority(thread, THREAD_PRIORITY_HIGHEST);
+        }
+    }
+
+    fn combine_deadline(current: Option<Instant>, next: Option<Instant>) -> Option<Instant> {
+        match (current, next) {
+            (Some(current), Some(next)) => Some(current.min(next)),
+            (None, Some(next)) => Some(next),
+            (current, None) => current,
+        }
+    }
+
+    fn next_pending_delay(
+        next_down_deadline: Option<Instant>,
+        next_up_deadlines: impl Iterator<Item = Instant>,
+    ) -> Option<Duration> {
+        let mut deadline = next_down_deadline;
+        for due_at in next_up_deadlines {
+            deadline = combine_deadline(deadline, Some(due_at));
+        }
+        deadline.map(|due_at| due_at.saturating_duration_since(Instant::now()))
+    }
+
+    fn sleep_for_pending_ups(delay: Option<Duration>, fallback: Duration) {
+        match delay {
+            Some(delay) if delay.is_zero() => thread::yield_now(),
+            Some(delay) => thread::sleep(delay.min(Duration::from_millis(1))),
+            None => thread::sleep(fallback),
         }
     }
 }

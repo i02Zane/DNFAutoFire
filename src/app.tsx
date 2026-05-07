@@ -549,7 +549,7 @@ function MainApp() {
   function addKey() {
     const nextKey = keyOptions.find((option) => !selectedKeys.some((key) => key.vk === option.vk));
     if (!nextKey) return;
-    updateSelectedKeys([...selectedKeys, { vk: nextKey.vk, intervalMs: 20 }]);
+    updateSelectedKeys([...selectedKeys, { vk: nextKey.vk, intervalMs: 20, mode: "hold" }]);
   }
 
   function updateKey(index: number, patch: Partial<KeyBinding>) {
@@ -749,19 +749,26 @@ function MainApp() {
                     onClick={closeTarget}
                   >
                     <aside
-                      className="flex h-full w-[380px] flex-col overflow-visible border-l border-slate-200 bg-white shadow-2xl"
+                      className="flex h-full w-[420px] max-w-[calc(100vw-220px)] flex-col overflow-visible border-l border-slate-200 bg-white shadow-2xl"
                       onClick={(event) => event.stopPropagation()}
                     >
                       <div className="px-5 pt-6 pb-5">
                         <h2 className="text-lg font-semibold">{selectedTitle}</h2>
-                        <p className="mt-1 text-xs text-slate-500">按键与间隔会自动保存。</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          按键、模式与间隔会自动保存。1秒=1000毫秒
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">连发模式说明：</p>
+                        <p className="mt-1 text-xs text-slate-500">1. 长按：需一直按住这个键</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          1. 单击：按一次连发，再按一次取消（手动卡键）
+                        </p>
                       </div>
 
                       {target.type === "profile" && (
                         <div className="px-5 pb-5">
                           <div>
                             <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-slate-500">
-                              <span>生效规则</span>
+                              <span>配置生效规则</span>
                               <RuleHelpTooltip />
                             </div>
                             <div className="grid grid-cols-2 rounded border border-slate-200 bg-slate-50 p-1">

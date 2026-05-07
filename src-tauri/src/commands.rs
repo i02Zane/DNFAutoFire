@@ -141,6 +141,7 @@ pub(crate) fn start_autofire(
             .map(|key| FireKeyConfig {
                 vk: key.vk,
                 interval_ms: key.interval_ms,
+                mode: key.mode,
             })
             .collect(),
     );

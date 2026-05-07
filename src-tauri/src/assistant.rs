@@ -207,6 +207,7 @@ fn to_fire_key_configs(keys: Vec<KeyBinding>) -> Vec<FireKeyConfig> {
         .map(|key| FireKeyConfig {
             vk: key.vk,
             interval_ms: key.interval_ms,
+            mode: key.mode,
         })
         .collect()
 }

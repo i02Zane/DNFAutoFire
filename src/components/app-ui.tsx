@@ -5,7 +5,12 @@ import { APP_DISPLAY_NAME } from "../lib/app-meta";
 import { browserKeyToVk } from "../lib/browser-keys";
 import { type ConfigOption } from "../lib/config";
 import { keyLabel, normalizeInterval } from "../lib/keys";
-import { isMockMode, KeyBinding, tauriCommands } from "../lib/tauri";
+import { isMockMode, type FireKeyMode, type KeyBinding, tauriCommands } from "../lib/tauri";
+
+const FIRE_KEY_MODE_OPTIONS: { label: string; value: FireKeyMode }[] = [
+  { label: "长按", value: "hold" },
+  { label: "单击", value: "toggle" },
+];
 
 export function AppTitleBar({ minimizeToTray }: { minimizeToTray: boolean }) {
   async function minimizeWindow() {
@@ -363,14 +368,15 @@ export function KeyTable({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="sticky top-0 z-10 grid grid-cols-[92px_1fr_42px] gap-2 border-b border-slate-200 bg-white pb-2 text-xs font-medium text-slate-500">
+      <div className="sticky top-0 z-10 grid grid-cols-[92px_104px_1fr_42px] gap-2 border-b border-slate-200 bg-white pb-2 text-xs font-medium text-slate-500">
         <div>按键</div>
+        <div>连发模式</div>
         <div>连发间隔(毫秒)</div>
         <div>删除</div>
       </div>
       <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
         {keys.map((key, index) => (
-          <div key={`${key.vk}-${index}`} className="grid grid-cols-[92px_1fr_42px] gap-2">
+          <div key={`${key.vk}-${index}`} className="grid grid-cols-[92px_104px_1fr_42px] gap-2">
             <button
               className={`h-9 rounded border px-2 text-left text-sm font-medium transition ${
                 recordingIndex === index
@@ -382,6 +388,19 @@ export function KeyTable({
             >
               {recordingIndex === index ? "请按键..." : keyLabel(key.vk)}
             </button>
+            <select
+              className="h-9 rounded border border-slate-300 bg-white px-2 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+              value={key.mode}
+              onChange={(event) =>
+                onUpdate(index, { mode: event.currentTarget.value as FireKeyMode })
+              }
+            >
+              {FIRE_KEY_MODE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
             <input
               className="h-9 rounded border border-slate-300 px-2 text-sm"
               max={1000}
@@ -466,10 +485,10 @@ export function RuleHelpTooltip() {
       <span className="pointer-events-none absolute top-5 left-1/2 z-30 hidden w-[260px] -translate-x-1/2 rounded border border-slate-200 bg-white p-3 text-left text-xs leading-5 text-slate-600 shadow-xl group-hover:block">
         <span className="block font-semibold text-slate-800">全局配置 + 职业配置</span>
         <span className="block">
-          识别到该职业时，同时使用全局键位和该职业键位；重复按键优先使用当前职业的配置。
+          同时使用全局键位和该职业键位；重复按键优先使用当前职业的配置。
         </span>
         <span className="mt-2 block font-semibold text-slate-800">仅职业配置</span>
-        <span className="block">识别到该职业时只使用该职业的键位，不带入全局配置。</span>
+        <span className="block">只使用该职业的键位，不包含全局配置的键位。</span>
       </span>
     </span>
   );
@@ -568,7 +587,7 @@ export function KeySummary({ active, keys }: { active: boolean; keys: KeyBinding
               : "border-slate-200 bg-white text-slate-700 shadow-sm"
           }`}
         >
-          {keyLabel(key.vk)} {key.intervalMs}ms
+          {keyLabel(key.vk)} {key.intervalMs}ms{key.mode === "toggle" ? " 切换" : ""}
         </span>
       ))}
     </>

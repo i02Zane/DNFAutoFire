@@ -16,6 +16,7 @@ export {
   type DetectionNoMatchPolicy,
   type DetectionSettings,
   type EffectRule,
+  type FireKeyMode,
   type LogLevelSetting,
   type Hotkey,
   type ImageRect,

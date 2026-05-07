@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use parking_lot::Mutex;
 
-pub(crate) const CONFIG_VERSION: u32 = 10;
+pub(crate) const CONFIG_VERSION: u32 = 11;
 pub(crate) const DEFAULT_INTERVAL_MS: u16 = 20;
 pub(crate) const DEFAULT_DETECTION_INTERVAL_MS: u64 = 200;
 pub(crate) const DEFAULT_AUTO_RUN_PULSE_DELAY_MS: u64 = 25;
@@ -24,11 +24,21 @@ const MAX_COMBO_COMMAND_DIRECTION_KEYS: usize = 4;
 const COMBO_COMMAND_DIRECTION_VKS: [u16; 4] = [0x25, 0x26, 0x27, 0x28];
 const COMBO_COMMAND_FINISH_VKS: [u16; 4] = [0x5A, 0x58, 0x43, 0x20];
 
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum FireKeyMode {
+    #[default]
+    Hold,
+    Toggle,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KeyBinding {
     pub vk: u16,
     pub interval_ms: u16,
+    #[serde(default)]
+    pub mode: FireKeyMode,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -436,6 +446,7 @@ fn default_config() -> AppConfig {
         global_keys: vec![KeyBinding {
             vk: 0x58,
             interval_ms: DEFAULT_INTERVAL_MS,
+            mode: FireKeyMode::Hold,
         }],
         combo_defs: Vec::new(),
         classes: BTreeMap::new(),
@@ -630,6 +641,7 @@ fn migrate_legacy_profile(path: &Path) -> Option<AppConfig> {
             .map(|vk| KeyBinding {
                 vk,
                 interval_ms: DEFAULT_INTERVAL_MS,
+                mode: FireKeyMode::Hold,
             })
             .collect();
         tracing::info!(
@@ -901,7 +913,7 @@ mod tests {
         is_legacy_profile_candidate, load_config_from_path, read_log_level_setting,
         validate_config, validate_runtime_profile, AppConfig, AppConfigStore, AppSettings,
         ClassConfig, ComboAction, ComboDefinition, CustomConfig, DetectionNoMatchPolicy,
-        DetectionSettings, EffectRule, KeyBinding, LogLevelSetting, CONFIG_VERSION,
+        DetectionSettings, EffectRule, FireKeyMode, KeyBinding, LogLevelSetting, CONFIG_VERSION,
         DEFAULT_DETECTION_INTERVAL_MS,
     };
     use std::collections::BTreeMap;
@@ -1052,6 +1064,44 @@ mod tests {
             DetectionNoMatchPolicy::Current
         );
         assert_eq!(config.detection.icon_database_version, "builtin-empty-v1");
+
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn load_config_defaults_missing_fire_key_mode_to_hold() {
+        let dir = unique_temp_dir("missing-fire-key-mode");
+        fs::write(
+            dir.join("app-config.json"),
+            r#"{
+                "version":10,
+                "globalKeys":[{"vk":88,"intervalMs":20}],
+                "comboDefs":[],
+                "classes":{
+                    "male_slayer_blade_master":{
+                        "enabledKeys":[{"vk":65,"intervalMs":30}],
+                        "effectRule":"globalAndClass",
+                        "comboDefs":[]
+                    }
+                },
+                "customConfigs":{},
+                "hiddenClassIds":[],
+                "activeClassId":null,
+                "toggleHotkey":null,
+                "detection":{"enabled":false,"intervalMs":200,"noMatchPolicy":"current","iconDatabaseVersion":"builtin-empty-v1"},
+                "settings":{}
+            }"#,
+        )
+        .unwrap();
+
+        let config = load_config_from_path(&dir.join("app-config.json"));
+
+        assert_eq!(config.version, CONFIG_VERSION);
+        assert_eq!(config.global_keys[0].mode, FireKeyMode::Hold);
+        assert_eq!(
+            config.classes["male_slayer_blade_master"].enabled_keys[0].mode,
+            FireKeyMode::Hold
+        );
 
         fs::remove_dir_all(dir).unwrap();
     }
@@ -1329,6 +1379,7 @@ mod tests {
         let keys = vec![KeyBinding {
             vk: 0x41,
             interval_ms: 20,
+            mode: FireKeyMode::Hold,
         }];
         let combos = vec![valid_combo("combo-1", 0x41)];
 
@@ -1407,10 +1458,12 @@ mod tests {
                     KeyBinding {
                         vk: 0x41,
                         interval_ms: 20,
+                        mode: FireKeyMode::Hold,
                     },
                     KeyBinding {
                         vk: 0x41,
                         interval_ms: 25,
+                        mode: FireKeyMode::Hold,
                     },
                 ],
                 effect_rule: EffectRule::GlobalAndClass,
@@ -1433,6 +1486,7 @@ mod tests {
                 enabled_keys: vec![KeyBinding {
                     vk: 0x41,
                     interval_ms: 20,
+                    mode: FireKeyMode::Hold,
                 }],
                 effect_rule: EffectRule::ClassOnly,
                 combo_defs: vec![valid_combo("combo-1", 0x41)],
@@ -1453,6 +1507,7 @@ mod tests {
         config.global_keys.push(KeyBinding {
             vk: 0x4A,
             interval_ms: 25,
+            mode: FireKeyMode::Hold,
         });
 
         let saved = store.save(config).unwrap();
@@ -1478,6 +1533,7 @@ mod tests {
                 enabled_keys: vec![KeyBinding {
                     vk: 0x41,
                     interval_ms: 20,
+                    mode: FireKeyMode::Hold,
                 }],
                 effect_rule: EffectRule::GlobalAndClass,
                 combo_defs: Vec::new(),
@@ -1514,6 +1570,7 @@ mod tests {
                 enabled_keys: vec![KeyBinding {
                     vk: 0x41,
                     interval_ms: 20,
+                    mode: FireKeyMode::Hold,
                 }],
                 effect_rule: EffectRule::GlobalAndClass,
                 combo_defs: Vec::new(),

@@ -1,7 +1,10 @@
 // 前后端共享的配置形状，字段名保持 camelCase 以匹配持久化 JSON。
+export type FireKeyMode = "hold" | "toggle";
+
 export type KeyBinding = {
   vk: number;
   intervalMs: number;
+  mode: FireKeyMode;
 };
 
 export type ComboTapAction = {

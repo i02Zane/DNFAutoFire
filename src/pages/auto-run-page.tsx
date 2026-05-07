@@ -57,21 +57,24 @@ export function AutoRunPage({
           <h1 className="text-[22px] font-semibold tracking-tight">一键奔跑</h1>
         </div>
         <div className="mt-1 space-y-1 text-sm leading-6 text-slate-500">
-          <p>按住左右移动键时自动补发奔跑脉冲。</p>
+          <p>
+            按住左右移动键时自动双击进行奔跑。会影响含有单数左右移动键的手搓，如→+空格、↑→→→+空格等。
+          </p>
         </div>
-
+      </section>
+      <section className="max-w-[500px]">
         <div className="mt-6 overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
           <SettingsSwitch
             checked={autoRunEnabled}
-            description="仅在助手运行时启用这一键奔跑。"
+            description=""
             label="启用一键奔跑"
             onChange={onAutoRunEnabledChange}
           />
 
           <div className="flex min-h-[74px] items-center gap-4 border-b border-slate-100 px-5 py-4 last:border-b-0 transition hover:bg-slate-50">
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-slate-800">向左移动键</span>
-              <span className="mt-1 block text-xs leading-5 text-slate-500">
+              <span className="block text-sm font-semibold text-slate-800">左移动键</span>
+              <span className="mt-1 block text-xs leading-5 text-slate-500 hidden">
                 点击后录入一个按键。
               </span>
             </span>
@@ -86,8 +89,8 @@ export function AutoRunPage({
 
           <div className="flex min-h-[74px] items-center gap-4 border-b border-slate-100 px-5 py-4 last:border-b-0 transition hover:bg-slate-50">
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-slate-800">向右移动键</span>
-              <span className="mt-1 block text-xs leading-5 text-slate-500">
+              <span className="block text-sm font-semibold text-slate-800">右移动键</span>
+              <span className="mt-1 block text-xs leading-5 text-slate-500 hidden">
                 点击后录入一个按键。
               </span>
             </span>
@@ -102,9 +105,9 @@ export function AutoRunPage({
 
           <div className="flex min-h-[74px] items-center gap-4 px-5 py-4 transition hover:bg-slate-50">
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-slate-800">脉冲间隔</span>
+              <span className="block text-sm font-semibold text-slate-800">双击间隔</span>
               <span className="mt-1 block text-xs leading-5 text-slate-500">
-                决定补发脉冲的等待档位。
+                短:10ms 中:25ms 长:50ms
               </span>
             </span>
             <div className="grid min-w-[192px] grid-cols-3 rounded border border-slate-200 bg-slate-50 p-1">
