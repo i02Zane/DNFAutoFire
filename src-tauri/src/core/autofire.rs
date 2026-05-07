@@ -316,16 +316,10 @@ mod windows_impl {
 
     use super::super::hook::{KeyboardHookEvent, KeyboardHookRunner};
     use super::super::keyboard::KeyboardDriver;
-    use super::super::window::is_foreground_target_window_active;
-    const MIN_KEY_HOLD_MS: u64 = 8;
-    const MAX_KEY_HOLD_MS: u64 = 50;
-    const SEND_STATS_LOG_INTERVAL: Duration = Duration::from_secs(1);
 
-    #[derive(Clone, Copy)]
-    enum FireInputKind {
-        Hidden,
-        Real,
-    }
+    const MIN_KEY_HOLD_MS: u64 = 8;
+    const MAX_KEY_HOLD_MS: u64 = 15;
+    const SEND_STATS_LOG_INTERVAL: Duration = Duration::from_secs(1);
 
     pub struct WindowsAutoFire {
         thread_handle: Option<JoinHandle<()>>,
@@ -476,10 +470,6 @@ mod windows_impl {
                         slot.fetch_and(!key_bit, Ordering::SeqCst);
                     }
                 }
-
-                if is_target_active_now() {
-                    return windows::Win32::Foundation::LRESULT(1);
-                }
             }
         }
 
@@ -510,10 +500,6 @@ mod windows_impl {
             .unwrap_or_default()
     }
 
-    fn is_target_active_now() -> bool {
-        is_foreground_target_window_active()
-    }
-
     fn autofire_loop(
         enabled: Arc<AtomicBool>,
         configured_keys: Arc<RwLock<HashSet<u16>>>,
@@ -529,7 +515,7 @@ mod windows_impl {
         let keyboard = WindowsKeyboardDriver::new();
         let window = WindowsWindowDetector::new();
         let mut next_fire_at: HashMap<u16, Instant> = HashMap::new();
-        let mut pending_key_ups: HashMap<u16, (u16, Instant, FireInputKind)> = HashMap::new();
+        let mut pending_key_ups: HashMap<u16, (u16, Instant)> = HashMap::new();
         let mut send_counts: HashMap<u16, u64> = HashMap::new();
         let mut send_stats_started_at = Instant::now();
         let mut draining = false;
@@ -548,14 +534,11 @@ mod windows_impl {
 
             let due_up_keys: Vec<u16> = pending_key_ups
                 .iter()
-                .filter_map(|(&vk, &(_, due_at, _))| (due_at <= now).then_some(vk))
+                .filter_map(|(&vk, &(_, due_at))| (due_at <= now).then_some(vk))
                 .collect();
             for vk in due_up_keys {
-                if let Some((sc, _, input_kind)) = pending_key_ups.remove(&vk) {
-                    match input_kind {
-                        FireInputKind::Hidden => keyboard.send_game_key_up(vk, sc),
-                        FireInputKind::Real => keyboard.send_key_up(vk, sc),
-                    }
+                if let Some((sc, _)) = pending_key_ups.remove(&vk) {
+                    keyboard.send_game_key_up(vk, sc);
                 }
             }
 
@@ -565,10 +548,8 @@ mod windows_impl {
 
             if !enabled.load(Ordering::SeqCst) {
                 next_fire_at.clear();
-                let sleep_for = next_pending_delay(
-                    None,
-                    pending_key_ups.values().map(|&(_, due_at, _)| due_at),
-                );
+                let sleep_for =
+                    next_pending_delay(None, pending_key_ups.values().map(|&(_, due_at)| due_at));
                 sleep_for_pending_ups(sleep_for, Duration::from_millis(10));
                 continue;
             }
@@ -576,19 +557,15 @@ mod windows_impl {
             if !window.is_target_active() {
                 log_waiting_window(&window);
                 next_fire_at.clear();
-                let sleep_for = next_pending_delay(
-                    None,
-                    pending_key_ups.values().map(|&(_, due_at, _)| due_at),
-                );
+                let sleep_for =
+                    next_pending_delay(None, pending_key_ups.values().map(|&(_, due_at)| due_at));
                 sleep_for_pending_ups(sleep_for, Duration::from_millis(50));
                 continue;
             }
 
             if draining {
-                let sleep_for = next_pending_delay(
-                    None,
-                    pending_key_ups.values().map(|&(_, due_at, _)| due_at),
-                );
+                let sleep_for =
+                    next_pending_delay(None, pending_key_ups.values().map(|&(_, due_at)| due_at));
                 sleep_for_pending_ups(sleep_for, Duration::from_millis(1));
                 continue;
             }
@@ -637,7 +614,7 @@ mod windows_impl {
                         continue;
                     }
                     has_active_key = true;
-                    if let Some((_, due_at, _)) = pending_key_ups.get(&vk) {
+                    if let Some((_, due_at)) = pending_key_ups.get(&vk) {
                         next_down_deadline = combine_deadline(next_down_deadline, Some(*due_at));
                         continue;
                     }
@@ -651,22 +628,13 @@ mod windows_impl {
 
                     let previous_fire_at = next_fire_at.get(&vk).copied();
                     let fire_started_at = Instant::now();
-                    let input_kind = if previous_fire_at.is_none() {
-                        FireInputKind::Real
-                    } else {
-                        FireInputKind::Hidden
-                    };
-                    match input_kind {
-                        FireInputKind::Hidden => keyboard.send_game_key_down(vk, sc),
-                        FireInputKind::Real => keyboard.send_key_down(vk, sc),
-                    }
+                    keyboard.send_game_key_down(vk, sc);
                     *send_counts.entry(vk).or_default() += 1;
                     pending_key_ups.insert(
                         vk,
                         (
                             sc,
                             fire_started_at + Duration::from_millis(key_hold_ms(interval_ms)),
-                            input_kind,
                         ),
                     );
                     next_fire_at.insert(
@@ -679,15 +647,13 @@ mod windows_impl {
                 if !has_active_key {
                     next_fire_at.clear();
                 }
-                let next_up_deadline = pending_key_ups.values().map(|&(_, due_at, _)| due_at);
+                let next_up_deadline = pending_key_ups.values().map(|&(_, due_at)| due_at);
                 let sleep_for = next_pending_delay(next_down_deadline, next_up_deadline);
                 sleep_for_pending_ups(sleep_for, Duration::from_millis(1));
             } else {
                 next_fire_at.clear();
-                let sleep_for = next_pending_delay(
-                    None,
-                    pending_key_ups.values().map(|&(_, due_at, _)| due_at),
-                );
+                let sleep_for =
+                    next_pending_delay(None, pending_key_ups.values().map(|&(_, due_at)| due_at));
                 sleep_for_pending_ups(sleep_for, Duration::from_millis(1));
             }
         }
@@ -752,7 +718,7 @@ mod windows_impl {
     }
 
     fn key_hold_ms(interval_ms: u64) -> u64 {
-        (interval_ms / 2).clamp(MIN_KEY_HOLD_MS, MAX_KEY_HOLD_MS)
+        (interval_ms / 3).clamp(MIN_KEY_HOLD_MS, MAX_KEY_HOLD_MS)
     }
 
     fn set_timer_resolution(high_precision: bool) {
