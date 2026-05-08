@@ -795,9 +795,7 @@ function MainApp() {
                         </p>
                         <p className="mt-1 text-xs text-slate-500">连发模式说明：</p>
                         <p className="mt-1 text-xs text-slate-500">1. 长按：需一直按住这个键</p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          1. 单击：按一次连发，再按一次取消（手动卡键）
-                        </p>
+                        <p className="mt-1 text-xs text-slate-500">2. 切换：按一次连发，再按一次取消</p>
                       </div>
 
                       {target.type === "profile" && (
@@ -935,7 +933,7 @@ function MainApp() {
                     {effectiveCombos.length} 个连招
                   </span>
                 </div>
-                <span className="ml-2 shrink-0 text-xs text-slate-500">单击激活</span>
+                <span className="ml-2 shrink-0 text-xs text-slate-500">切换激活</span>
                 <div className="flex min-w-0 flex-nowrap gap-1.5 overflow-hidden">
                   <ToggleKeySummary activeToggleKeys={activeToggleKeys} />
                 </div>

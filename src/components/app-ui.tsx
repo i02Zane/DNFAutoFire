@@ -9,7 +9,7 @@ import { isMockMode, type FireKeyMode, type KeyBinding, tauriCommands } from "..
 
 const FIRE_KEY_MODE_OPTIONS: { label: string; value: FireKeyMode }[] = [
   { label: "长按", value: "hold" },
-  { label: "单击", value: "toggle" },
+  { label: "切换", value: "toggle" },
 ];
 
 export function AppTitleBar({ minimizeToTray }: { minimizeToTray: boolean }) {

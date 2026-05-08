@@ -223,7 +223,7 @@ export function FloatingControlView() {
           </button>
         </div>
         <div className="flex min-w-0 items-center gap-1.5 overflow-hidden" data-tauri-drag-region>
-          <span className="shrink-0 text-[10px] text-slate-500">单击激活</span>
+          <span className="shrink-0 text-[10px] text-slate-500">切换激活</span>
           <div className="flex min-w-0 flex-nowrap gap-1 overflow-hidden">
             <ToggleKeySummary activeToggleKeys={activeToggleKeys} compact />
           </div>

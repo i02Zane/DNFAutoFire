@@ -551,7 +551,7 @@ mod windows_impl {
                                     tracing::debug!(
                                         vk = %format_vk(event.vk),
                                         active = old_toggle & key_bit == 0,
-                                        "单击连发状态"
+                                        "切换连发状态"
                                     );
                                 }
                             }
