@@ -1,6 +1,6 @@
 [package]
 name = "dnfautofire"
-version = "0.3.8"
+version = "0.3.9"
 description = "DNF按键助手"
 authors = ["Arthur"]
 edition = "2021"

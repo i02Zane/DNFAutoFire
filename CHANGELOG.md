@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.9] - 2026-05-09
+- 新增运行诊断页面，方便查看助手、职业识别和各运行时状态
+
 ## [0.3.8] - 2026-05-08
 - 优化职业自动识别的 Windows Graphics Capture 兼容回退，减少旧系统因无边框捕获能力不支持而失败
 
