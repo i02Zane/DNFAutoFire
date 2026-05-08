@@ -13,11 +13,11 @@ mod tray;
 
 use commands::{
     active_autofire_toggle_keys, is_assistant_running, is_auto_run_running, is_detection_running,
-    is_elevated, is_running, load_app_config, load_class_categories, register_toggle_hotkey,
-    restart_as_admin, save_app_config, select_active_config, set_launch_at_startup, set_log_level,
-    set_runtime_keys, set_runtime_profile, show_error_message, start_assistant, start_auto_run,
-    start_autofire, start_detection, stop_assistant, stop_auto_run, stop_autofire, stop_detection,
-    update_tray_current_config,
+    is_elevated, is_running, load_app_config, load_class_categories, load_runtime_diagnostics,
+    register_toggle_hotkey, restart_as_admin, save_app_config, select_active_config,
+    set_launch_at_startup, set_log_level, set_runtime_keys, set_runtime_profile,
+    show_error_message, start_assistant, start_auto_run, start_autofire, start_detection,
+    stop_assistant, stop_auto_run, stop_autofire, stop_detection, update_tray_current_config,
 };
 use state::AppState;
 use tauri::Manager;
@@ -96,6 +96,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             load_app_config,
             load_class_categories,
+            load_runtime_diagnostics,
             save_app_config,
             select_active_config,
             set_log_level,

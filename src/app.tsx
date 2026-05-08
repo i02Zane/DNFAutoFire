@@ -1,5 +1,6 @@
 // 主窗口入口：负责配置编辑、连发运行状态，以及托盘和悬浮窗的状态同步。
 import {
+  Activity,
   CircleHelp,
   Footprints,
   Keyboard,
@@ -67,6 +68,7 @@ import {
 import { AboutPage } from "./pages/about-page";
 import { AutoRunPage } from "./pages/auto-run-page";
 import { ConfigManagementPage } from "./pages/config-management-page";
+import { RuntimeDiagnosticsPage } from "./pages/runtime-diagnostics-page";
 import { SettingsPage } from "./pages/settings-page";
 import type { EditTarget, Page } from "./types/ui";
 
@@ -641,6 +643,12 @@ function MainApp() {
               onClick={() => changePage("config-management")}
             />
             <NavButton
+              active={page === "runtime-diagnostics"}
+              icon={<Activity size={18} />}
+              label="运行诊断"
+              onClick={() => changePage("runtime-diagnostics")}
+            />
+            <NavButton
               active={page === "settings"}
               icon={<Settings size={18} />}
               label="设置"
@@ -856,6 +864,8 @@ function MainApp() {
                 }
                 onAutoRunRightVkChange={(vk) => updateSettings({ autoRunRightVk: vk })}
               />
+            ) : page === "runtime-diagnostics" ? (
+              <RuntimeDiagnosticsPage classCategories={classCategories} onError={showMessage} />
             ) : page === "config-management" ? (
               <ConfigManagementPage
                 config={config}

@@ -25,6 +25,7 @@ export {
   makeCustomConfig,
 } from "../types/app-config";
 export { type ClassCategory, type ClassInfo } from "../types/class-catalog";
+export { type RuntimeDiagnostics } from "../types/runtime-diagnostics";
 export { isMockMode, isTauriEnvironment } from "./tauri-env";
 export { tauriCommands } from "./tauri-commands";
 

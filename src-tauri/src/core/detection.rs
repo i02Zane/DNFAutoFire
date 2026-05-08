@@ -25,6 +25,15 @@ pub struct DetectionRuntime {
     platform: windows_impl::WindowsDetectionRuntime,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DetectionSnapshot {
+    pub running: bool,
+    pub interval_ms: u64,
+    pub last_result: Option<ClassDetectionResultEvent>,
+    pub town_active: Option<bool>,
+}
+
 impl DetectionRuntime {
     pub fn new(config_store: Arc<AppConfigStore>) -> Self {
         Self {
@@ -85,6 +94,33 @@ impl DetectionRuntime {
     pub fn is_running(&self) -> bool {
         self.enabled.load(Ordering::SeqCst)
     }
+
+    pub fn snapshot(&self) -> DetectionSnapshot {
+        DetectionSnapshot {
+            running: self.is_running(),
+            interval_ms: self.interval_ms.load(Ordering::SeqCst),
+            last_result: self.last_result_snapshot(),
+            town_active: self.town_active_snapshot(),
+        }
+    }
+
+    fn last_result_snapshot(&self) -> Option<ClassDetectionResultEvent> {
+        #[cfg(windows)]
+        {
+            self.platform.last_result_snapshot()
+        }
+
+        #[cfg(not(windows))]
+        {
+            None
+        }
+    }
+
+    fn town_active_snapshot(&self) -> Option<bool> {
+        self.last_result_snapshot()
+            .as_ref()
+            .and_then(|result| town_active_from_reason(&result.reason))
+    }
 }
 
 impl Default for DetectionRuntime {
@@ -102,6 +138,15 @@ impl Drop for DetectionRuntime {
 fn emit_app_config_changed(app_handle: &tauri::AppHandle, config: &AppConfig) {
     if let Err(error) = app_handle.emit(crate::APP_CONFIG_CHANGED_EVENT, config) {
         tracing::warn!(error = %error, "发送配置变更事件失败");
+    }
+}
+
+fn town_active_from_reason(reason: &str) -> Option<bool> {
+    match reason {
+        "matched" | "notFound" => Some(true),
+        "notInTown" => Some(false),
+        "foregroundInactive" | "captureError" => None,
+        _ => None,
     }
 }
 
@@ -130,6 +175,7 @@ mod windows_impl {
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct DetectionSignature {
         class_index: Option<u16>,
+        confidence: u32,
         reason: String,
     }
 
@@ -202,6 +248,17 @@ mod windows_impl {
 
             self.stop_signal.store(false, Ordering::SeqCst);
             *self.last_reported.lock() = None;
+        }
+
+        pub fn last_result_snapshot(&self) -> Option<ClassDetectionResultEvent> {
+            self.last_reported
+                .lock()
+                .as_ref()
+                .map(|signature| ClassDetectionResultEvent {
+                    class_index: signature.class_index,
+                    confidence: signature.confidence as f32 / 1000.0,
+                    reason: signature.reason.clone(),
+                })
         }
     }
 
@@ -578,6 +635,7 @@ mod windows_impl {
         let reason = reason.into();
         let signature = DetectionSignature {
             class_index,
+            confidence: (confidence * 1000.0).round() as u32,
             reason: reason.clone(),
         };
 
@@ -747,6 +805,7 @@ mod windows_impl {
         fn detection_signature_dedupes_identical_results() {
             let signature = DetectionSignature {
                 class_index: Some(1),
+                confidence: 1000,
                 reason: "matched".to_string(),
             };
             let last_reported = Arc::new(Mutex::new(Some(signature.clone())));

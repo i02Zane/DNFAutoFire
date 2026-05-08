@@ -15,10 +15,39 @@ use crate::notify::show_error_message_box;
 use crate::startup::set_windows_launch_at_startup;
 use crate::state::AppState;
 use crate::tray::update_tray_current_config_item;
+use serde::Serialize;
 use tauri::Emitter;
 use tauri::State;
 
 const EMPTY_AUTOFIRE_KEYS_ERROR: &str = "请至少配置一个连发按键";
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RuntimeDiagnostics {
+    assistant: crate::assistant::AssistantRuntimeSnapshot,
+    foreground: ForegroundDiagnostics,
+    active_config: ActiveConfigDiagnostics,
+    autofire: crate::core::autofire::AutoFireSnapshot,
+    combo: crate::core::combo::ComboSnapshot,
+    auto_run: crate::core::autorun::AutoRunSnapshot,
+    detection: crate::core::detection::DetectionSnapshot,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ForegroundDiagnostics {
+    target_active: bool,
+    class_name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ActiveConfigDiagnostics {
+    active_class_id: Option<String>,
+    detection_enabled: bool,
+    detection_interval_ms: u64,
+    auto_run_enabled: bool,
+}
 
 #[tauri::command]
 pub(crate) fn load_app_config(state: State<AppState>) -> AppConfig {
@@ -28,6 +57,26 @@ pub(crate) fn load_app_config(state: State<AppState>) -> AppConfig {
 #[tauri::command]
 pub(crate) fn load_class_categories() -> Vec<ClassCategory> {
     class_categories()
+}
+
+#[tauri::command]
+pub(crate) fn load_runtime_diagnostics(state: State<AppState>) -> RuntimeDiagnostics {
+    let config = state.config_store.current();
+    let assistant_snapshots = state.assistant_runtime.engine_snapshots();
+    RuntimeDiagnostics {
+        assistant: assistant_snapshots.assistant,
+        foreground: foreground_diagnostics(),
+        active_config: ActiveConfigDiagnostics {
+            active_class_id: config.active_class_id,
+            detection_enabled: config.detection.enabled,
+            detection_interval_ms: config.detection.interval_ms,
+            auto_run_enabled: config.settings.auto_run_enabled,
+        },
+        autofire: assistant_snapshots.autofire,
+        combo: assistant_snapshots.combo,
+        auto_run: assistant_snapshots.auto_run,
+        detection: state.detection_runtime.lock().snapshot(),
+    }
 }
 
 #[tauri::command]
@@ -414,5 +463,23 @@ fn emit_detection_running_changed(app: &tauri::AppHandle, running: bool) {
 pub(crate) fn emit_app_config_changed(app: &tauri::AppHandle, config: &AppConfig) {
     if let Err(error) = app.emit(crate::APP_CONFIG_CHANGED_EVENT, config) {
         tracing::warn!(error = %error, "发送配置变更事件失败");
+    }
+}
+
+fn foreground_diagnostics() -> ForegroundDiagnostics {
+    #[cfg(windows)]
+    {
+        ForegroundDiagnostics {
+            target_active: crate::core::window::is_foreground_target_window_active(),
+            class_name: crate::core::window::get_foreground_window_class_name(),
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        ForegroundDiagnostics {
+            target_active: false,
+            class_name: String::new(),
+        }
     }
 }

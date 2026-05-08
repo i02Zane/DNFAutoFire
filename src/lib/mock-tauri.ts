@@ -64,6 +64,7 @@ let mockConfig: AppConfig = {
 };
 
 let mockRunning = false;
+let mockDetectionRunning = false;
 
 function isMockSelectableConfigId(config: AppConfig, configId: string): boolean {
   const customConfig = config.customConfigs[configId];
@@ -86,6 +87,53 @@ export async function mockInvoke<T>(name: string, args?: Record<string, unknown>
       return structuredClone(mockConfig) as T;
     case "load_class_categories":
       return structuredClone(mockClassCategories) as T;
+    case "load_runtime_diagnostics":
+      return {
+        assistant: {
+          running: mockRunning,
+          profileKeyCount: mockConfig.globalKeys.length,
+          profileComboCount: 0,
+        },
+        foreground: {
+          targetActive: true,
+          className: "MockDnfWindow",
+        },
+        activeConfig: {
+          activeClassId: mockConfig.activeClassId,
+          detectionEnabled: mockConfig.detection.enabled,
+          detectionIntervalMs: mockConfig.detection.intervalMs,
+          autoRunEnabled: mockConfig.settings.autoRunEnabled,
+        },
+        autofire: {
+          running: mockRunning,
+          keys: mockConfig.globalKeys.map((key) => ({
+            ...key,
+            pressed: false,
+            toggleActive: key.mode === "toggle",
+          })),
+        },
+        combo: {
+          running: false,
+          comboCount: 0,
+          enabledComboCount: 0,
+          triggerVks: [],
+          executing: false,
+        },
+        autoRun: {
+          running: false,
+          leftVk: mockConfig.settings.autoRunLeftVk,
+          rightVk: mockConfig.settings.autoRunRightVk,
+          pulseDelayMs: mockConfig.settings.autoRunPulseDelayMs,
+        },
+        detection: {
+          running: mockDetectionRunning,
+          intervalMs: mockConfig.detection.intervalMs,
+          lastResult: mockDetectionRunning
+            ? { classIndex: 0, confidence: 1, reason: "matched" }
+            : null,
+          townActive: mockDetectionRunning ? true : null,
+        },
+      } as T;
     case "save_app_config":
       mockConfig = structuredClone(args?.config as AppConfig);
       return structuredClone(mockConfig) as T;
@@ -126,11 +174,13 @@ export async function mockInvoke<T>(name: string, args?: Record<string, unknown>
     case "is_auto_run_running":
       return false as T;
     case "start_detection":
+      mockDetectionRunning = true;
       return true as T;
     case "stop_detection":
+      mockDetectionRunning = false;
       return true as T;
     case "is_detection_running":
-      return false as T;
+      return mockDetectionRunning as T;
     case "is_running":
       return mockRunning as T;
     case "active_autofire_toggle_keys":

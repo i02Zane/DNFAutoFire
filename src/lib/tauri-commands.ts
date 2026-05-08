@@ -11,6 +11,7 @@ import {
   LogLevelSetting,
 } from "../types/app-config";
 import type { ClassCategory } from "../types/class-catalog";
+import type { RuntimeDiagnostics } from "../types/runtime-diagnostics";
 import { isTauriEnvironment } from "./tauri-env";
 import { mockInvoke } from "./mock-tauri";
 
@@ -27,6 +28,7 @@ async function invokeCommand<T>(name: string, args?: Record<string, unknown>): P
 export const tauriCommands = {
   loadAppConfig: () => invokeCommand<AppConfig>("load_app_config"),
   loadClassCategories: () => invokeCommand<ClassCategory[]>("load_class_categories"),
+  loadRuntimeDiagnostics: () => invokeCommand<RuntimeDiagnostics>("load_runtime_diagnostics"),
   saveAppConfig: (config: AppConfig) => invokeCommand<AppConfig>("save_app_config", { config }),
   selectActiveConfig: (activeClassId: string | null) =>
     invokeCommand<AppConfig>("select_active_config", { activeClassId }),

@@ -3,6 +3,7 @@
 use crate::config::ComboDefinition;
 use crate::logging::format_vk;
 use parking_lot::RwLock;
+use serde::Serialize;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -16,6 +17,16 @@ pub struct ComboEngine {
     executing: Arc<AtomicBool>,
     #[cfg(windows)]
     platform: windows_impl::WindowsComboEngine,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ComboSnapshot {
+    pub running: bool,
+    pub combo_count: usize,
+    pub enabled_combo_count: usize,
+    pub trigger_vks: Vec<u16>,
+    pub executing: bool,
 }
 
 impl std::fmt::Debug for ComboEngine {
@@ -97,6 +108,21 @@ impl ComboEngine {
 
     pub fn is_running(&self) -> bool {
         self.enabled.load(Ordering::SeqCst)
+    }
+
+    pub fn snapshot(&self) -> ComboSnapshot {
+        let combos = self.combos.read();
+        let trigger_keys = self.trigger_keys.read();
+        let mut trigger_vks: Vec<_> = trigger_keys.iter().copied().collect();
+        trigger_vks.sort_unstable();
+
+        ComboSnapshot {
+            running: self.is_running(),
+            combo_count: combos.len(),
+            enabled_combo_count: combos.iter().filter(|combo| combo.enabled).count(),
+            trigger_vks,
+            executing: self.executing.load(Ordering::SeqCst),
+        }
     }
 }
 

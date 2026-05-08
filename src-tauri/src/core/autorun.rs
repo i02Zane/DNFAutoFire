@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use parking_lot::RwLock;
+use serde::Serialize;
 
 use crate::logging::format_vk;
 
@@ -85,6 +86,15 @@ pub struct AutoRunEngine {
     platform: windows_impl::WindowsAutoRun,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoRunSnapshot {
+    pub running: bool,
+    pub left_vk: u16,
+    pub right_vk: u16,
+    pub pulse_delay_ms: u64,
+}
+
 impl std::fmt::Debug for AutoRunEngine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AutoRunEngine")
@@ -145,6 +155,16 @@ impl AutoRunEngine {
 
     pub fn is_running(&self) -> bool {
         self.enabled.load(Ordering::SeqCst)
+    }
+
+    pub fn snapshot(&self) -> AutoRunSnapshot {
+        let settings = *self.settings.read();
+        AutoRunSnapshot {
+            running: self.is_running(),
+            left_vk: settings.left_vk,
+            right_vk: settings.right_vk,
+            pulse_delay_ms: settings.pulse_delay_ms,
+        }
     }
 }
 

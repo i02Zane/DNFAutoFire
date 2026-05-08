@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use crate::config::FireKeyMode;
 use crate::logging::format_vk;
+use serde::Serialize;
 
 #[cfg(windows)]
 use super::keyboard::WindowsKeyboardDriver;
@@ -22,6 +23,23 @@ pub struct FireKeyConfig {
     pub vk: u16,
     pub interval_ms: u16,
     pub mode: FireKeyMode,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoFireKeySnapshot {
+    pub vk: u16,
+    pub interval_ms: u64,
+    pub mode: FireKeyMode,
+    pub pressed: bool,
+    pub toggle_active: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoFireSnapshot {
+    pub running: bool,
+    pub keys: Vec<AutoFireKeySnapshot>,
 }
 
 pub struct AutoFireEngine {
@@ -157,6 +175,37 @@ impl AutoFireEngine {
             .collect::<Vec<_>>();
         keys.sort_unstable();
         keys
+    }
+
+    pub fn snapshot(&self) -> AutoFireSnapshot {
+        let configured = self.configured_keys.read();
+        let intervals = self.key_intervals.read();
+        let modes = self.key_modes.read();
+        let pressed_snapshot = pressed_key_snapshot(&self.pressed_keys);
+        let toggle_snapshot = pressed_key_snapshot(&self.toggle_active_keys);
+        let mut keys: Vec<_> = configured
+            .iter()
+            .filter_map(|&vk| {
+                let (slot_index, key_bit) = vk_to_slot_bit(vk)?;
+                Some(AutoFireKeySnapshot {
+                    vk,
+                    interval_ms: intervals.get(&vk).copied().unwrap_or_default(),
+                    mode: modes.get(&vk).copied().unwrap_or_default(),
+                    pressed: pressed_key_snapshot_contains(&pressed_snapshot, slot_index, key_bit),
+                    toggle_active: pressed_key_snapshot_contains(
+                        &toggle_snapshot,
+                        slot_index,
+                        key_bit,
+                    ),
+                })
+            })
+            .collect();
+        keys.sort_by_key(|key| key.vk);
+
+        AutoFireSnapshot {
+            running: self.is_running(),
+            keys,
+        }
     }
 }
 

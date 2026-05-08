@@ -3,6 +3,7 @@
 use crate::config::{AppConfigStore, ComboDefinition, KeyBinding};
 use crate::core::{AutoFireEngine, AutoRunEngine, ComboEngine, FireKeyConfig};
 use parking_lot::Mutex;
+use serde::Serialize;
 use std::sync::Arc;
 
 pub(crate) const EMPTY_ASSISTANT_PROFILE_ERROR: &str = "请至少配置一个连发按键或一键连招";
@@ -36,6 +37,23 @@ pub(crate) struct AssistantRuntime {
     auto_run_runtime: Arc<Mutex<AutoRunEngine>>,
     config_store: Arc<AppConfigStore>,
     profile: Arc<Mutex<AssistantProfile>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AssistantRuntimeSnapshot {
+    pub running: bool,
+    pub profile_key_count: usize,
+    pub profile_combo_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AssistantEngineSnapshots {
+    pub assistant: AssistantRuntimeSnapshot,
+    pub autofire: crate::core::autofire::AutoFireSnapshot,
+    pub combo: crate::core::combo::ComboSnapshot,
+    pub auto_run: crate::core::autorun::AutoRunSnapshot,
 }
 
 impl AssistantRuntime {
@@ -131,6 +149,24 @@ impl AssistantRuntime {
         self.engine.lock().is_running()
             || self.combo_engine.lock().is_running()
             || self.auto_run_runtime.lock().is_running()
+    }
+
+    pub(crate) fn snapshot(&self) -> AssistantRuntimeSnapshot {
+        let profile = self.profile.lock();
+        AssistantRuntimeSnapshot {
+            running: self.is_running(),
+            profile_key_count: profile.keys.len(),
+            profile_combo_count: profile.combos.len(),
+        }
+    }
+
+    pub(crate) fn engine_snapshots(&self) -> AssistantEngineSnapshots {
+        AssistantEngineSnapshots {
+            assistant: self.snapshot(),
+            autofire: self.engine.lock().snapshot(),
+            combo: self.combo_engine.lock().snapshot(),
+            auto_run: self.auto_run_runtime.lock().snapshot(),
+        }
     }
 
     fn store_runtime_profile(&self, profile: AssistantProfile) {
