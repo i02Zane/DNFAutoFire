@@ -239,41 +239,56 @@ mod windows_impl {
                 continue;
             };
 
-            let custom_settings = build_capture_settings(
-                hwnd.0,
-                &app_handle,
-                &config_store,
-                &stop_signal,
-                &last_reported,
-                sample_interval_ms,
-                MinimumUpdateIntervalSettings::Custom(Duration::from_millis(sample_interval_ms)),
-            );
+            let capture_attempts = [
+                (
+                    DrawBorderSettings::WithoutBorder,
+                    MinimumUpdateIntervalSettings::Custom(Duration::from_millis(
+                        sample_interval_ms,
+                    )),
+                ),
+                (
+                    DrawBorderSettings::WithoutBorder,
+                    MinimumUpdateIntervalSettings::Default,
+                ),
+                (
+                    DrawBorderSettings::Default,
+                    MinimumUpdateIntervalSettings::Default,
+                ),
+            ];
 
-            if let Err(custom_error) = DetectionCapture::start(custom_settings) {
-                tracing::warn!(
-                    error = %custom_error,
-                    "职业识别自定义采样间隔捕获失败，尝试默认间隔"
-                );
-
-                let default_settings = build_capture_settings(
+            let mut capture_started = false;
+            for (draw_border_settings, minimum_update_interval_settings) in capture_attempts {
+                let settings = build_capture_settings(
                     hwnd.0,
                     &app_handle,
                     &config_store,
                     &stop_signal,
                     &last_reported,
                     sample_interval_ms,
-                    MinimumUpdateIntervalSettings::Default,
+                    draw_border_settings,
+                    minimum_update_interval_settings,
                 );
 
-                if let Err(default_error) = DetectionCapture::start(default_settings) {
-                    tracing::warn!(
-                        custom_error = %custom_error,
-                        error = %default_error,
-                        "职业识别默认采样间隔捕获失败"
-                    );
-                    emit_detection_result(&app_handle, &last_reported, None, 0.0, "captureError");
-                    thread::sleep(Duration::from_millis(sample_interval_ms));
+                match DetectionCapture::start(settings) {
+                    Ok(()) => {
+                        capture_started = true;
+                        break;
+                    }
+                    Err(error) => {
+                        tracing::warn!(
+                            error = %error,
+                            ?draw_border_settings,
+                            ?minimum_update_interval_settings,
+                            "职业识别捕获失败，尝试兼容设置"
+                        );
+                    }
                 }
+            }
+
+            if !capture_started {
+                tracing::warn!("职业识别所有捕获兼容设置均失败");
+                emit_detection_result(&app_handle, &last_reported, None, 0.0, "captureError");
+                thread::sleep(Duration::from_millis(sample_interval_ms));
             }
         }
 
@@ -298,12 +313,13 @@ mod windows_impl {
         stop_signal: &Arc<AtomicBool>,
         last_reported: &Arc<Mutex<Option<DetectionSignature>>>,
         sample_interval_ms: u64,
+        draw_border_settings: DrawBorderSettings,
         minimum_update_interval_settings: MinimumUpdateIntervalSettings,
     ) -> DetectionCaptureSettings {
         Settings::new(
             Window::from_raw_hwnd(hwnd),
             CursorCaptureSettings::Default,
-            DrawBorderSettings::WithoutBorder,
+            draw_border_settings,
             SecondaryWindowSettings::Default,
             minimum_update_interval_settings,
             DirtyRegionSettings::Default,
