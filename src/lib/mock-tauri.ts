@@ -133,6 +133,8 @@ export async function mockInvoke<T>(name: string, args?: Record<string, unknown>
       return false as T;
     case "is_running":
       return mockRunning as T;
+    case "active_autofire_toggle_keys":
+      return [] as T;
     case "is_elevated":
       return true as T;
     case "show_error_message":

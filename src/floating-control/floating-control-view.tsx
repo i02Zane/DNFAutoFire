@@ -1,7 +1,7 @@
-// 悬浮控制视图：只展示主窗口广播的配置快照，并把轻量操作回传给主窗口。
+// 悬浮控制视图：只展示主窗口广播的配置和运行态快照，并把轻量操作回传给主窗口。
 import { Play, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { ConfigSelect } from "../components/app-ui";
+import { ConfigSelect, ToggleKeySummary } from "../components/app-ui";
 import { APP_EVENTS, emitAppEvent, listenAppEvent } from "../lib/app-events";
 import {
   computeEffectiveCombos,
@@ -20,6 +20,7 @@ export function FloatingControlView() {
   const [classCategories, setClassCategories] = useState<ClassCategory[]>([]);
   const [running, setRunning] = useState(false);
   const [detectionRunning, setDetectionRunning] = useState(false);
+  const [activeToggleKeys, setActiveToggleKeys] = useState<number[]>([]);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -28,12 +29,14 @@ export function FloatingControlView() {
       tauriCommands.loadAppConfig(),
       tauriCommands.isAssistantRunning(),
       tauriCommands.isDetectionRunning(),
+      tauriCommands.activeAutofireToggleKeys(),
       tauriCommands.loadClassCategories(),
-    ]).then(([nextConfig, isRunning, isDetectionRunning, classCategories]) => {
+    ]).then(([nextConfig, isRunning, isDetectionRunning, activeToggleKeys, classCategories]) => {
       setClassCategories(classCategories);
       setConfig(nextConfig);
       setRunning(isRunning);
       setDetectionRunning(isDetectionRunning);
+      setActiveToggleKeys(activeToggleKeys);
     });
   }, []);
 
@@ -46,10 +49,11 @@ export function FloatingControlView() {
     const listenFloatingControlUpdate = async () => {
       unlisten = await listenAppEvent(
         APP_EVENTS.floatingControlUpdate,
-        ({ config, detectionRunning, running }) => {
+        ({ activeToggleKeys, config, detectionRunning, running }) => {
           setConfig(config);
           setDetectionRunning(detectionRunning);
           setRunning(running);
+          setActiveToggleKeys(activeToggleKeys);
         },
       );
       if (disposed) unlisten();
@@ -112,14 +116,17 @@ export function FloatingControlView() {
       if (running) {
         await tauriCommands.stopAssistant();
         setRunning(false);
+        setActiveToggleKeys([]);
         return;
       }
 
       await tauriCommands.startAssistant(keys, combos);
       setRunning(true);
+      setActiveToggleKeys(await tauriCommands.activeAutofireToggleKeys());
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
       setRunning(false);
+      setActiveToggleKeys([]);
       await tauriCommands.showErrorMessage(message).catch(() => undefined);
     }
   }
@@ -145,7 +152,7 @@ export function FloatingControlView() {
     };
 
     void resizeWindow().catch(() => undefined);
-  }, [combos, keys, running, config.activeClassId, config.classes]);
+  }, [activeToggleKeys, combos, keys, running, config.activeClassId, config.classes]);
 
   useEffect(() => {
     if (isMockMode()) return;
@@ -176,43 +183,51 @@ export function FloatingControlView() {
       className="inline-flex min-w-[188px] max-w-[340px] overflow-hidden rounded-none border border-slate-200 bg-white shadow-xl"
       data-tauri-drag-region
     >
-      <main className="flex items-center gap-2 px-2 py-1.5 text-slate-900" data-tauri-drag-region>
-        <div className="flex shrink-0 items-center whitespace-nowrap">
-          <ConfigSelect
-            key={detectionRunning ? "detection-locked" : "detection-unlocked"}
-            activeClassId={config.activeClassId}
-            disabled={detectionRunning}
-            options={configuredConfigOptions(config, classCategories)}
-            compact
-            native
-            onChange={(id) => void handleClassChange(id)}
-          />
+      <main className="flex flex-col gap-1.5 px-2 py-1.5 text-slate-900" data-tauri-drag-region>
+        <div className="flex items-center gap-2" data-tauri-drag-region>
+          <div className="flex shrink-0 items-center whitespace-nowrap">
+            <ConfigSelect
+              key={detectionRunning ? "detection-locked" : "detection-unlocked"}
+              activeClassId={config.activeClassId}
+              disabled={detectionRunning}
+              options={configuredConfigOptions(config, classCategories)}
+              compact
+              native
+              onChange={(id) => void handleClassChange(id)}
+            />
+          </div>
+          <button
+            aria-label={config.detection.enabled ? "切换到手动选择" : "切换到自动识别"}
+            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-xs font-semibold transition ${
+              config.detection.enabled
+                ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+            }`}
+            title={config.detection.enabled ? "自动识别" : "手动选择"}
+            type="button"
+            onClick={() => void toggleDetectionMode()}
+          >
+            {detectionModeLabel}
+          </button>
+          <button
+            aria-label={running ? "停止连发" : "启动连发"}
+            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition ${
+              running
+                ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                : "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100"
+            }`}
+            type="button"
+            onClick={() => void toggleFloatingAutofire()}
+          >
+            {running ? <Square size={14} /> : <Play size={14} />}
+          </button>
         </div>
-        <button
-          aria-label={config.detection.enabled ? "切换到手动选择" : "切换到自动识别"}
-          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-xs font-semibold transition ${
-            config.detection.enabled
-              ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-              : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-          }`}
-          title={config.detection.enabled ? "自动识别" : "手动选择"}
-          type="button"
-          onClick={() => void toggleDetectionMode()}
-        >
-          {detectionModeLabel}
-        </button>
-        <button
-          aria-label={running ? "停止连发" : "启动连发"}
-          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition ${
-            running
-              ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
-              : "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100"
-          }`}
-          type="button"
-          onClick={() => void toggleFloatingAutofire()}
-        >
-          {running ? <Square size={14} /> : <Play size={14} />}
-        </button>
+        <div className="flex min-w-0 items-center gap-1.5 overflow-hidden" data-tauri-drag-region>
+          <span className="shrink-0 text-[10px] text-slate-500">单击激活</span>
+          <div className="flex min-w-0 flex-nowrap gap-1 overflow-hidden">
+            <ToggleKeySummary activeToggleKeys={activeToggleKeys} compact />
+          </div>
+        </div>
       </main>
     </div>
   );

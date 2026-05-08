@@ -138,6 +138,26 @@ impl AutoFireEngine {
     pub fn is_running(&self) -> bool {
         self.enabled.load(Ordering::SeqCst)
     }
+
+    pub fn active_toggle_keys(&self) -> Vec<u16> {
+        if !self.enabled.load(Ordering::SeqCst) {
+            return Vec::new();
+        }
+
+        let configured = self.configured_keys.read();
+        let modes = self.key_modes.read();
+        let toggle_snapshot = pressed_key_snapshot(&self.toggle_active_keys);
+        let mut keys = configured
+            .iter()
+            .filter(|&&vk| modes.get(&vk).copied().unwrap_or_default() == FireKeyMode::Toggle)
+            .filter_map(|&vk| {
+                let (slot_index, key_bit) = vk_to_slot_bit(vk)?;
+                pressed_key_snapshot_contains(&toggle_snapshot, slot_index, key_bit).then_some(vk)
+            })
+            .collect::<Vec<_>>();
+        keys.sort_unstable();
+        keys
+    }
 }
 
 fn clear_pressed_keys(pressed_keys: &PressedKeyBits) {
@@ -305,6 +325,33 @@ mod tests {
         assert!(pressed_key_snapshot_contains(
             &snapshot, num8_slot, num8_bit
         ));
+    }
+
+    #[test]
+    fn active_toggle_keys_reads_runtime_toggle_state_only() {
+        let engine = AutoFireEngine::new();
+        engine.set_key_configs(vec![
+            FireKeyConfig {
+                vk: 0x58,
+                interval_ms: 20,
+                mode: FireKeyMode::Toggle,
+            },
+            FireKeyConfig {
+                vk: 0x5A,
+                interval_ms: 20,
+                mode: FireKeyMode::Hold,
+            },
+        ]);
+
+        let (toggle_slot, toggle_bit) = vk_to_slot_bit(0x58).unwrap();
+        let (hold_slot, hold_bit) = vk_to_slot_bit(0x5A).unwrap();
+        engine.toggle_active_keys[toggle_slot].store(toggle_bit, Ordering::SeqCst);
+        engine.toggle_active_keys[hold_slot].fetch_or(hold_bit, Ordering::SeqCst);
+
+        assert!(engine.active_toggle_keys().is_empty());
+        engine.enabled.store(true, Ordering::SeqCst);
+
+        assert_eq!(engine.active_toggle_keys(), vec![0x58]);
     }
 }
 

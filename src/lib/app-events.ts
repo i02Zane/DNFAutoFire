@@ -13,6 +13,7 @@ export const APP_EVENTS = {
 } as const;
 
 export type FloatingControlUpdatePayload = {
+  activeToggleKeys: number[];
   config: AppConfig;
   detectionRunning: boolean;
   running: boolean;

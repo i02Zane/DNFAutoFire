@@ -46,6 +46,7 @@ export const tauriCommands = {
   stopDetection: () => invokeCommand<boolean>("stop_detection"),
   isDetectionRunning: () => invokeCommand<boolean>("is_detection_running"),
   isRunning: () => invokeCommand<boolean>("is_running"),
+  activeAutofireToggleKeys: () => invokeCommand<number[]>("active_autofire_toggle_keys"),
   registerToggleHotkey: (hotkey: Hotkey | null) =>
     invokeCommand<boolean>("register_toggle_hotkey", { hotkey }),
   updateTrayCurrentConfig: (label: string) =>

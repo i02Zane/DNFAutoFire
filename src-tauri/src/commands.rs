@@ -252,6 +252,11 @@ pub(crate) fn is_running(state: State<AppState>) -> bool {
 }
 
 #[tauri::command]
+pub(crate) fn active_autofire_toggle_keys(state: State<AppState>) -> Vec<u16> {
+    state.engine.lock().active_toggle_keys()
+}
+
+#[tauri::command]
 pub(crate) fn stop_assistant(state: State<AppState>) -> bool {
     tracing::info!("请求停止助手");
     state.assistant_runtime.stop();

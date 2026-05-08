@@ -4,6 +4,7 @@ import { type AppConfig, isMockMode, tauriCommands } from "../lib/tauri";
 import type { ConfigUpdater } from "./use-app-config";
 
 type UseFloatingControlSyncOptions = {
+  activeToggleKeys: number[];
   config: AppConfig;
   detectionRunning: boolean;
   floatingControlEnabled: boolean;
@@ -16,6 +17,7 @@ type UseFloatingControlSyncOptions = {
 };
 
 export function useFloatingControlSync({
+  activeToggleKeys,
   config,
   detectionRunning,
   floatingControlEnabled,
@@ -52,9 +54,10 @@ export function useFloatingControlSync({
   useEffect(() => {
     if (isMockMode() || !floatingControlEnabled) return;
 
-    // 悬浮窗只消费主窗口广播的快照，不自己维护第二份配置。
+    // 悬浮窗只消费主窗口广播的配置和运行态快照，不自己维护第二份配置。
     const emitFloatingControlUpdate = async () => {
       await emitAppEvent(APP_EVENTS.floatingControlUpdate, {
+        activeToggleKeys,
         config,
         detectionRunning,
         running,
@@ -62,7 +65,7 @@ export function useFloatingControlSync({
     };
 
     void emitFloatingControlUpdate().catch(() => undefined);
-  }, [config, detectionRunning, floatingControlEnabled, running]);
+  }, [activeToggleKeys, config, detectionRunning, floatingControlEnabled, running]);
 
   useEffect(() => {
     if (isMockMode()) return;

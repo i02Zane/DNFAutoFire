@@ -593,3 +593,30 @@ export function KeySummary({ active, keys }: { active: boolean; keys: KeyBinding
     </>
   );
 }
+
+export function ToggleKeySummary({
+  activeToggleKeys,
+  compact = false,
+}: {
+  activeToggleKeys: number[];
+  compact?: boolean;
+}) {
+  if (activeToggleKeys.length === 0) {
+    return (
+      <span className={compact ? "text-[10px] text-slate-400" : "text-xs text-slate-400"}>无</span>
+    );
+  }
+
+  const chipClass = compact
+    ? "shrink-0 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700"
+    : "shrink-0 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700";
+  return (
+    <>
+      {activeToggleKeys.map((vk) => (
+        <span key={vk} className={chipClass}>
+          {keyLabel(vk)}
+        </span>
+      ))}
+    </>
+  );
+}

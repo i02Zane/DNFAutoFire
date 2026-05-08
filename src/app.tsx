@@ -21,6 +21,7 @@ import {
   NavButton,
   RuleButton,
   RuleHelpTooltip,
+  ToggleKeySummary,
 } from "./components/app-ui";
 import { ComboEditorPage } from "./components/combo-editor";
 import { FloatingControlView } from "./floating-control/floating-control-view";
@@ -72,6 +73,7 @@ import type { EditTarget, Page } from "./types/ui";
 type RuntimeState = {
   running: boolean;
   detectionRunning: boolean;
+  activeToggleKeys: number[];
 };
 type UiState = {
   page: Page;
@@ -96,6 +98,7 @@ function MainApp() {
   const [runtimeState, setRuntimeState] = useState<RuntimeState>({
     running: false,
     detectionRunning: false,
+    activeToggleKeys: [],
   });
   const [autofireClassSearch, setAutofireClassSearch] = useState("");
   const [uiState, setUiState] = useState<UiState>({
@@ -109,16 +112,33 @@ function MainApp() {
   // 状态分层：config 是持久配置，runtimeState 是运行状态，uiState 只保存临时界面状态。
   const running = runtimeState.running;
   const detectionRunning = runtimeState.detectionRunning;
+  const activeToggleKeys = runtimeState.activeToggleKeys;
   const { comboClassId, floatingControlEnabled, message, page, recordingHotkey, target } = uiState;
   const setRunning = useCallback((nextRunning: boolean) => {
-    setRuntimeState((current) => ({ ...current, running: nextRunning }));
+    setRuntimeState((current) => {
+      if (current.running === nextRunning) return current;
+      return { ...current, running: nextRunning };
+    });
   }, []);
 
   const setDetectionRunning = useCallback((nextDetectionRunning: boolean) => {
-    setRuntimeState((current) => ({
-      ...current,
-      detectionRunning: nextDetectionRunning,
-    }));
+    setRuntimeState((current) => {
+      if (current.detectionRunning === nextDetectionRunning) return current;
+      return {
+        ...current,
+        detectionRunning: nextDetectionRunning,
+      };
+    });
+  }, []);
+
+  const setActiveToggleKeys = useCallback((nextActiveToggleKeys: number[]) => {
+    setRuntimeState((current) => {
+      const sameKeys =
+        current.activeToggleKeys.length === nextActiveToggleKeys.length &&
+        current.activeToggleKeys.every((key, index) => key === nextActiveToggleKeys[index]);
+      if (sameKeys) return current;
+      return { ...current, activeToggleKeys: nextActiveToggleKeys };
+    });
   }, []);
 
   const setPage = useCallback((nextPage: Page) => {
@@ -138,10 +158,13 @@ function MainApp() {
   }, []);
 
   const setFloatingControlEnabled = useCallback((nextFloatingControlEnabled: boolean) => {
-    setUiState((current) => ({
-      ...current,
-      floatingControlEnabled: nextFloatingControlEnabled,
-    }));
+    setUiState((current) => {
+      if (current.floatingControlEnabled === nextFloatingControlEnabled) return current;
+      return {
+        ...current,
+        floatingControlEnabled: nextFloatingControlEnabled,
+      };
+    });
   }, []);
 
   const toggleFloatingControlEnabled = useCallback(() => {
@@ -164,20 +187,23 @@ function MainApp() {
       config: nextConfig,
       running: isRunning,
       detectionRunning: isDetectionRunning,
+      activeToggleKeys: nextActiveToggleKeys,
     }: {
       config: AppConfig;
       running: boolean;
       detectionRunning: boolean;
+      activeToggleKeys: number[];
     }) => {
       setRunning(isRunning);
       setDetectionRunning(isDetectionRunning);
+      setActiveToggleKeys(nextActiveToggleKeys);
       setFloatingControlEnabled(nextConfig.settings.openFloatingControlOnStart);
       // 卸载保留用户数据后，重装首次启动要按配置重新同步 Windows Run 项。
       void tauriCommands.setLaunchAtStartup(nextConfig.settings.launchAtStartup).catch((reason) => {
         showMessage(reason instanceof Error ? reason.message : String(reason));
       });
     },
-    [setDetectionRunning, setFloatingControlEnabled, setRunning, showMessage],
+    [setActiveToggleKeys, setDetectionRunning, setFloatingControlEnabled, setRunning, showMessage],
   );
 
   // 配置的加载、保存和回滚都封装在 hook 里；这里仅消费最新快照。
@@ -258,6 +284,7 @@ function MainApp() {
     effectiveCombos,
     effectiveKeys,
     running,
+    setActiveToggleKeys,
     setRunning,
     showMessage,
     startupConfigLoaded,
@@ -277,6 +304,7 @@ function MainApp() {
 
   // 悬浮控制与主窗口双向同步，但真正的配置落盘仍只发生在主窗口。
   useFloatingControlSync({
+    activeToggleKeys,
     config,
     detectionRunning,
     floatingControlEnabled,
@@ -896,6 +924,10 @@ function MainApp() {
                   <span className="shrink-0 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 shadow-sm">
                     {effectiveCombos.length} 个连招
                   </span>
+                </div>
+                <span className="ml-2 shrink-0 text-xs text-slate-500">单击激活</span>
+                <div className="flex min-w-0 flex-nowrap gap-1.5 overflow-hidden">
+                  <ToggleKeySummary activeToggleKeys={activeToggleKeys} />
                 </div>
               </div>
             </div>

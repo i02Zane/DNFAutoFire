@@ -15,6 +15,7 @@ type UseAssistantRuntimeOptions = {
   currentConfigLabel: string;
   effectiveCombos: ComboDefinition[];
   effectiveKeys: KeyBinding[];
+  setActiveToggleKeys: (activeToggleKeys: number[]) => void;
   running: boolean;
   setRunning: (running: boolean) => void;
   showMessage: (message: string) => void;
@@ -30,25 +31,34 @@ export function useAssistantRuntime({
   currentConfigLabel,
   effectiveCombos,
   effectiveKeys,
+  setActiveToggleKeys,
   running,
   setRunning,
   showMessage,
   startupConfigLoaded,
   toggleHotkey,
 }: UseAssistantRuntimeOptions) {
+  const refreshRuntimeState = useCallback(async () => {
+    const [isRunning, activeToggleKeys] = await Promise.all([
+      tauriCommands.isAssistantRunning(),
+      tauriCommands.activeAutofireToggleKeys(),
+    ]);
+    setRunning(isRunning);
+    setActiveToggleKeys(isRunning ? activeToggleKeys : []);
+  }, [setActiveToggleKeys, setRunning]);
+
   // 后端也可能通过全局快捷键改变运行态，因此主窗口不能只相信自己的按钮点击。
   useEffect(() => {
     if (isMockMode() || !startupConfigLoaded) return;
 
+    void refreshRuntimeState().catch(() => undefined);
+
     // 全局快捷键也能改变后端状态，主窗口用轻量轮询同步显示状态。
     const timer = window.setInterval(() => {
-      void tauriCommands
-        .isAssistantRunning()
-        .then(setRunning)
-        .catch(() => undefined);
+      void refreshRuntimeState().catch(() => undefined);
     }, 500);
     return () => window.clearInterval(timer);
-  }, [setRunning, startupConfigLoaded]);
+  }, [refreshRuntimeState, startupConfigLoaded]);
 
   useEffect(() => {
     if (isMockMode() || !startupConfigLoaded) return;
@@ -60,10 +70,14 @@ export function useAssistantRuntime({
   useEffect(() => {
     if (!startupConfigLoaded || !running) return;
     // 运行中刷新配置时，后端会更新连发键和当前职业连招快照。
-    void tauriCommands.startAssistant(effectiveKeys, effectiveCombos).catch((reason) => {
-      setRunning(false);
-      showMessage(reason instanceof Error ? reason.message : String(reason));
-    });
+    void tauriCommands
+      .startAssistant(effectiveKeys, effectiveCombos)
+      .then(refreshRuntimeState)
+      .catch((reason) => {
+        setRunning(false);
+        setActiveToggleKeys([]);
+        showMessage(reason instanceof Error ? reason.message : String(reason));
+      });
   }, [
     autoRunEnabled,
     autoRunLeftVk,
@@ -71,7 +85,9 @@ export function useAssistantRuntime({
     autoRunRightVk,
     effectiveCombos,
     effectiveKeys,
+    refreshRuntimeState,
     running,
+    setActiveToggleKeys,
     setRunning,
     showMessage,
     startupConfigLoaded,
@@ -108,13 +124,20 @@ export function useAssistantRuntime({
     try {
       if (running) {
         await tauriCommands.stopAssistant();
-        setRunning(false);
       } else {
         await tauriCommands.startAssistant(effectiveKeys, effectiveCombos);
-        setRunning(true);
       }
+      await refreshRuntimeState();
     } catch (reason) {
+      setActiveToggleKeys([]);
       showMessage(reason instanceof Error ? reason.message : String(reason));
     }
-  }, [effectiveCombos, effectiveKeys, running, setRunning, showMessage]);
+  }, [
+    effectiveCombos,
+    effectiveKeys,
+    refreshRuntimeState,
+    running,
+    setActiveToggleKeys,
+    showMessage,
+  ]);
 }

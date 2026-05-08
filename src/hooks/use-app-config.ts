@@ -7,6 +7,7 @@ export type ConfigUpdater = AppConfig | ((currentConfig: AppConfig) => AppConfig
 
 type StartupState = {
   config: AppConfig;
+  activeToggleKeys: number[];
   running: boolean;
   detectionRunning: boolean;
 };
@@ -73,10 +74,16 @@ export function useAppConfig({ onSaveError, onStartupLoaded }: UseAppConfigOptio
       tauriCommands.loadAppConfig(),
       tauriCommands.isAssistantRunning(),
       tauriCommands.isDetectionRunning(),
-    ]).then(([nextConfig, isRunning, detectionRunning]) => {
+      tauriCommands.activeAutofireToggleKeys(),
+    ]).then(([nextConfig, isRunning, detectionRunning, activeToggleKeys]) => {
       lastSavedConfigRef.current = nextConfig;
       applyConfig(nextConfig);
-      onStartupLoaded({ config: nextConfig, running: isRunning, detectionRunning });
+      onStartupLoaded({
+        config: nextConfig,
+        running: isRunning,
+        detectionRunning,
+        activeToggleKeys,
+      });
       setStartupConfigLoaded(true);
     });
   }, [applyConfig, onStartupLoaded]);
