@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.8] - 2026-05-08
+- 优化职业自动识别的 Windows Graphics Capture 兼容回退，减少旧系统因无边框捕获能力不支持而失败
+
 ## [0.3.7] - 2026-05-07
 - 调整按键连发长间隔按键保持时长，降低漏发风险
 - 恢复按键连发钩子为仅记录物理按键状态，不拦截真实按键
