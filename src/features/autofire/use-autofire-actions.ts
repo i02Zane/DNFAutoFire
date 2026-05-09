@@ -74,11 +74,21 @@ export function useAutofireActions({
     (keys: KeyBinding[]) => {
       if (!target) return;
       if (target.type === "global") {
-        void mutateSnapshot(() => tauriCommands.updateGlobalKeys(keys));
+        void mutateSnapshot(() => tauriCommands.updateGlobalKeys(keys), {
+          optimistic: (currentSnapshot) => ({
+            ...currentSnapshot,
+            profiles: updateProfilesSelectedKeys(currentSnapshot.profiles, target, keys),
+          }),
+        });
         return;
       }
 
-      void mutateSnapshot(() => tauriCommands.updateProfileKeys(target.configId, keys));
+      void mutateSnapshot(() => tauriCommands.updateProfileKeys(target.configId, keys), {
+        optimistic: (currentSnapshot) => ({
+          ...currentSnapshot,
+          profiles: updateProfilesSelectedKeys(currentSnapshot.profiles, target, keys),
+        }),
+      });
     },
     [mutateSnapshot, target],
   );
@@ -129,5 +139,40 @@ export function useAutofireActions({
     updateKey,
     visibleAutofireClassCategories,
     visibleCustomConfigs,
+  };
+}
+
+function updateProfilesSelectedKeys(
+  profiles: ProfilesConfig,
+  target: EditTarget,
+  keys: KeyBinding[],
+): ProfilesConfig {
+  if (target.type === "global") {
+    return { ...profiles, globalKeys: keys };
+  }
+
+  if (Object.prototype.hasOwnProperty.call(profiles.customConfigs, target.configId)) {
+    return {
+      ...profiles,
+      customConfigs: {
+        ...profiles.customConfigs,
+        [target.configId]: {
+          ...getProfileConfig(profiles, target.configId),
+          name: profiles.customConfigs[target.configId]?.name ?? "自定义配置",
+          enabledKeys: keys,
+        },
+      },
+    };
+  }
+
+  return {
+    ...profiles,
+    classes: {
+      ...profiles.classes,
+      [target.configId]: {
+        ...getProfileConfig(profiles, target.configId),
+        enabledKeys: keys,
+      },
+    },
   };
 }
