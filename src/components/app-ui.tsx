@@ -359,7 +359,7 @@ export function KeyTable({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="sticky top-0 z-10 grid grid-cols-[92px_104px_1fr_42px] gap-2 border-b border-slate-200 bg-white pb-2 text-xs font-medium text-slate-500">
+      <div className="sticky top-0 z-10 grid grid-cols-[92px_104px_1fr_42px] gap-2 border-b border-slate-200 bg-white pb-2 text-xs font-semibold text-slate-500">
         <div>按键</div>
         <div>连发模式</div>
         <div>连发间隔(毫秒)</div>
@@ -369,7 +369,7 @@ export function KeyTable({
         {keys.map((key, index) => (
           <div key={`${key.vk}-${index}`} className="grid grid-cols-[92px_104px_1fr_42px] gap-2">
             <button
-              className={`h-9 rounded border px-2 text-left text-sm font-medium transition ${
+              className={`h-9 rounded border px-2 text-left text-sm font-semibold transition ${
                 recordingIndex === index
                   ? "border-blue-400 bg-blue-50 text-blue-700"
                   : "border-slate-300 bg-white text-slate-800 hover:border-blue-300 hover:bg-blue-50"
@@ -380,7 +380,7 @@ export function KeyTable({
               {recordingIndex === index ? "请按键..." : keyLabel(key.vk)}
             </button>
             <select
-              className="h-9 rounded border border-slate-300 bg-white px-2 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+              className="h-9 rounded border border-slate-300 bg-white px-2 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
               value={key.mode}
               onChange={(event) =>
                 onUpdate(index, { mode: event.currentTarget.value as FireKeyMode })
@@ -430,7 +430,7 @@ function FireKeyIntervalInput({
 
   return (
     <input
-      className="h-9 rounded border border-slate-300 px-2 text-sm"
+      className="h-9 rounded border border-slate-300 px-2 text-sm font-semibold text-slate-900 outline-none transition focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
       max={1000}
       min={MIN_FIRE_INTERVAL_MS}
       type="number"

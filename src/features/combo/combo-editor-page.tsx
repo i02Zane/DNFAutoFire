@@ -571,7 +571,7 @@ function TapActionEditor({
     <div className="flex min-w-0 flex-wrap items-start gap-2">
       <div>
         <button
-          className={`inline-flex h-9 min-w-[96px] items-center justify-center rounded border px-4 text-[15px] font-semibold transition ${
+          className={`inline-flex h-9 min-w-[96px] items-center justify-center rounded border px-4 text-sm font-semibold transition ${
             recording
               ? "border-blue-400 bg-blue-50 text-blue-700"
               : keyIssue
@@ -650,14 +650,14 @@ function CommandActionEditor({
           return (
             <span
               key={`${vk}-${keyIndex}`}
-              className="inline-flex h-9 min-w-10 items-center justify-center rounded border border-slate-200 bg-white px-3 text-[15px] font-semibold text-slate-800"
+              className="inline-flex h-9 min-w-10 items-center justify-center rounded border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800"
             >
               {keyLabel(vk)}
             </span>
           );
         })}
         <button
-          className={`inline-flex h-9 items-center gap-1.5 rounded border px-3 text-[15px] font-semibold shadow-sm transition ${
+          className={`inline-flex h-9 items-center gap-1.5 rounded border px-3 text-sm font-semibold shadow-sm transition ${
             recordingSequence
               ? "border-blue-400 bg-blue-50 text-blue-700"
               : commandKeysIssue
@@ -714,9 +714,9 @@ function NumberField({
           issue ? "border-red-300 bg-red-50/40" : "border-slate-200"
         }`}
       >
-        <span className="text-[15px] font-semibold text-slate-500">{label}</span>
+        <span className="text-sm font-semibold text-slate-500">{label}</span>
         <input
-          className="h-8 w-full min-w-0 border-0 bg-transparent text-center text-[15px] font-semibold text-slate-900 outline-none"
+          className="h-8 w-full min-w-0 border-0 bg-transparent text-center text-sm font-semibold text-slate-900 outline-none"
           max={max}
           min={min}
           type="number"

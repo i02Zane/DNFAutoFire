@@ -163,21 +163,21 @@ export function AutofirePage({
           onClick={closeTarget}
         >
           <aside
-            className="flex h-full w-[420px] max-w-[calc(100vw-220px)] flex-col overflow-visible border-l border-slate-200 bg-white shadow-2xl"
+            className="flex h-full w-[440px] max-w-[calc(100vw-220px)] flex-col overflow-visible border-l border-slate-200 bg-white shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="px-5 pt-6 pb-5">
-              <h2 className="text-lg font-semibold">{selectedTitle}</h2>
+            <header className="border-b border-slate-200 bg-white px-6 py-5">
+              <h2 className="truncate text-xl font-semibold text-slate-900">{selectedTitle}</h2>
               <p className="mt-1 text-xs text-slate-500">
                 按键、模式与间隔会自动保存。1秒=1000毫秒
               </p>
               <p className="mt-1 text-xs text-slate-500">连发模式说明：</p>
               <p className="mt-1 text-xs text-slate-500">1. 长按：需一直按住这个键</p>
               <p className="mt-1 text-xs text-slate-500">2. 切换：按一次连发，再按一次取消</p>
-            </div>
+            </header>
 
             {target.type === "profile" && (
-              <div className="px-5 pb-5">
+              <div className="px-6 py-5">
                 <div>
                   <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-slate-500">
                     <span>配置生效规则</span>
@@ -203,7 +203,7 @@ export function AutofirePage({
               </div>
             )}
 
-            <div className="min-h-0 flex-1 px-5 pb-6">
+            <div className="min-h-0 flex-1 px-6 py-5">
               <KeyTable
                 keys={selectedKeys}
                 onAdd={addKey}
