@@ -521,6 +521,8 @@ mod windows_impl {
     static HOOK_KEY_MODES_REF: once_cell::sync::Lazy<
         RwLock<Option<Arc<RwLock<HashMap<u16, FireKeyMode>>>>>,
     > = once_cell::sync::Lazy::new(|| RwLock::new(None));
+    static HOOK_WINDOW_DETECTOR: once_cell::sync::Lazy<WindowsWindowDetector> =
+        once_cell::sync::Lazy::new(WindowsWindowDetector::new);
 
     unsafe extern "system" fn keyboard_hook_proc(
         code: i32,
@@ -548,16 +550,23 @@ mod windows_impl {
                             );
 
                             if key_mode(event.vk) == FireKeyMode::Toggle {
-                                let toggle_keys = HOOK_TOGGLE_ACTIVE_KEYS.read();
-                                if let Some(ref toggle_keys) = *toggle_keys {
-                                    let toggle_slot = &toggle_keys[slot_index];
-                                    let old_toggle =
-                                        toggle_slot.fetch_xor(key_bit, Ordering::SeqCst);
+                                if !is_target_active_for_toggle() {
                                     tracing::debug!(
                                         vk = %format_vk(event.vk),
-                                        active = old_toggle & key_bit == 0,
-                                        "切换连发状态"
+                                        "忽略非目标窗口的切换连发按键"
                                     );
+                                } else {
+                                    let toggle_keys = HOOK_TOGGLE_ACTIVE_KEYS.read();
+                                    if let Some(ref toggle_keys) = *toggle_keys {
+                                        let toggle_slot = &toggle_keys[slot_index];
+                                        let old_toggle =
+                                            toggle_slot.fetch_xor(key_bit, Ordering::SeqCst);
+                                        tracing::debug!(
+                                            vk = %format_vk(event.vk),
+                                            active = old_toggle & key_bit == 0,
+                                            "切换连发状态"
+                                        );
+                                    }
                                 }
                             }
                         }
@@ -599,6 +608,10 @@ mod windows_impl {
             .as_ref()
             .and_then(|modes| modes.read().get(&vk).copied())
             .unwrap_or_default()
+    }
+
+    fn is_target_active_for_toggle() -> bool {
+        HOOK_WINDOW_DETECTOR.is_target_active()
     }
 
     fn autofire_loop(
