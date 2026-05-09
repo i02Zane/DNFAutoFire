@@ -12,10 +12,11 @@ pnpm install
 
 # 开发
 pnpm dev            # Tauri 完整开发模式
-pnpm dev:web        # 仅前端预览，自动进入 mock 模式
+pnpm dev:web        # 仅前端静态预览，不提供后端业务 mock
 
 # 前端质量检查
 pnpm typecheck      # TypeScript --noEmit
+pnpm test:frontend  # 前端单元测试
 pnpm lint           # oxlint + eslint
 pnpm lint:fix       # 自动修复可修复的前端 lint 问题
 pnpm format         # oxfmt 格式化 src
@@ -38,6 +39,10 @@ pnpm run ci
 # 构建
 pnpm build:web
 pnpm build
+
+# 跨端 DTO
+pnpm generate:types # 从 Rust DTO 重新生成 src/generated/backend-types.ts
+pnpm types:check    # 检查生成类型是否过期
 ```
 
 ## 修改前
@@ -47,6 +52,7 @@ pnpm build
 - 优先复用现有模式，小步修改；不要混入无关重构、格式化、依赖升级或本地配置。
 - 不读写 `node_modules/`、`src-tauri/gen/`、`src-tauri/target/`。
 - 跨前后端契约改动必须同步类型、实现、校验、迁移、文档和测试。
+- 改动 Rust DTO、IPC payload、结构化错误或 snapshot 时，必须运行 `pnpm generate:types` 并提交更新后的 `src/generated/backend-types.ts`。
 - 变更优先在独立分支上完成，再合并到 `main`，保持主干提交整洁。
 
 ## 修改中
@@ -68,7 +74,8 @@ Windows PowerShell 5.1 默认读写文件可能产生旧编码或 UTF-16LE，容
 ## 修改后
 
 - 修改中文文档或源码后运行 `pnpm encoding:check`。
-- 前端改动运行 `pnpm typecheck`、`pnpm lint`、`pnpm format:check`、`pnpm encoding:check`。
+- 跨端 DTO 改动后运行 `pnpm types:check`。
+- 前端改动运行 `pnpm typecheck`、`pnpm test:frontend`、`pnpm lint`、`pnpm format:check`、`pnpm encoding:check`。
 - Rust 改动运行 `pnpm rust:check`、`pnpm rust:clippy`、`pnpm rust:fmt:check`、`pnpm rust:test`。
 - 跨端契约或发布前检查运行 `pnpm check:all` 或 `pnpm run ci`。
 - 如果无法运行必要检查，提交或 PR 说明原因和剩余风险。

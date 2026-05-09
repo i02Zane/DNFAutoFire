@@ -3,34 +3,26 @@ import { ChevronDown, CircleHelp, Minus, Plus, Trash2, X } from "lucide-react";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { APP_DISPLAY_NAME } from "../lib/app-meta";
 import { browserKeyToVk } from "../lib/browser-keys";
-import { type ConfigOption } from "../lib/config";
-import { keyLabel, normalizeInterval } from "../lib/keys";
-import { isMockMode, type FireKeyMode, type KeyBinding, tauriCommands } from "../lib/tauri";
+import { keyLabel, toU16Integer } from "../lib/keys";
+import { tauriCommands } from "../lib/tauri-commands";
+import { isMockMode } from "../lib/tauri-env";
+import type { ConfigOption, FireKeyMode, KeyBinding } from "../types/app-config";
 
+const MIN_FIRE_INTERVAL_MS = 10;
 const FIRE_KEY_MODE_OPTIONS: { label: string; value: FireKeyMode }[] = [
   { label: "长按", value: "hold" },
   { label: "切换", value: "toggle" },
 ];
 
-export function AppTitleBar({ minimizeToTray }: { minimizeToTray: boolean }) {
+export function AppTitleBar() {
   async function minimizeWindow() {
     if (isMockMode()) return;
-    const { getCurrentWindow } = await import("@tauri-apps/api/window");
-    const window = getCurrentWindow();
-    if (minimizeToTray) {
-      await window.hide();
-      return;
-    }
-
-    await window.minimize();
+    await tauriCommands.minimizeMainWindow();
   }
 
   async function closeWindow() {
     if (isMockMode()) return;
-    // 主窗口关闭前先隐藏悬浮窗，避免留下孤立的 always-on-top 子窗口。
-    await tauriCommands.hideFloatingControlWindow();
-    const { getCurrentWindow } = await import("@tauri-apps/api/window");
-    await getCurrentWindow().close();
+    await tauriCommands.closeMainWindow();
   }
 
   return (
@@ -347,7 +339,6 @@ export function KeyTable({
   onUpdate: (index: number, patch: Partial<KeyBinding>) => void;
 }) {
   const [recordingIndex, setRecordingIndex] = useState<number | null>(null);
-  const [draftValues, setDraftValues] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (recordingIndex === null) return;
@@ -401,34 +392,9 @@ export function KeyTable({
                 </option>
               ))}
             </select>
-            <input
-              className="h-9 rounded border border-slate-300 px-2 text-sm"
-              max={1000}
-              min={10}
-              type="number"
-              value={draftValues[`${key.vk}-${index}`] ?? String(key.intervalMs)}
-              onBlur={(event) => {
-                const rawValue = event.currentTarget.value;
-                const nextValue = normalizeInterval(Number(rawValue));
-                setDraftValues((current) => {
-                  const next = { ...current };
-                  delete next[`${key.vk}-${index}`];
-                  return next;
-                });
-                onUpdate(index, { intervalMs: nextValue });
-              }}
-              onChange={(event) => {
-                const rawValue = event.currentTarget.value;
-                setDraftValues((current) => ({
-                  ...current,
-                  [`${key.vk}-${index}`]: rawValue,
-                }));
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.currentTarget.blur();
-                }
-              }}
+            <FireKeyIntervalInput
+              value={key.intervalMs}
+              onChange={(intervalMs) => onUpdate(index, { intervalMs })}
             />
             <button
               className="inline-flex h-9 items-center justify-center rounded border border-slate-300 text-slate-500 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600"
@@ -449,6 +415,40 @@ export function KeyTable({
         添加按键
       </button>
     </div>
+  );
+}
+
+function FireKeyIntervalInput({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const [draftState, setDraftState] = useState({ sourceValue: value, text: String(value) });
+  const inputValue = draftState.sourceValue === value ? draftState.text : String(value);
+
+  return (
+    <input
+      className="h-9 rounded border border-slate-300 px-2 text-sm"
+      max={1000}
+      min={MIN_FIRE_INTERVAL_MS}
+      type="number"
+      value={inputValue}
+      onBlur={(event) => {
+        const rawValue = event.currentTarget.value;
+        const nextValue = Number(rawValue);
+        const intervalMs = toU16Integer(nextValue, value, MIN_FIRE_INTERVAL_MS);
+        setDraftState({ sourceValue: intervalMs, text: String(intervalMs) });
+        onChange(intervalMs);
+      }}
+      onChange={(event) => setDraftState({ sourceValue: value, text: event.currentTarget.value })}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.currentTarget.blur();
+        }
+      }}
+    />
   );
 }
 

@@ -1,39 +1,23 @@
 // 前端多窗口事件总线：集中定义事件名和 payload，避免主窗口/悬浮窗各写一份字符串。
-import { type AppConfig, type ClassDetectionResult } from "../types/app-config";
+import type { AppStateSnapshot, RuntimeStateSnapshot } from "../types/app-config";
+import type { BackendAppError } from "../types/app-error";
 import { isMockMode } from "./tauri-env";
 
 export const APP_EVENTS = {
-  classDetectionResult: "class-detection:result",
-  detectionRunningChanged: "class-detection:running-changed",
   appConfigChanged: "app-config:changed",
-  floatingControlDetectionModeToggleRequest: "floating-control:detection-mode-toggle-request",
-  floatingControlToggleRequest: "floating-control:toggle-request",
-  floatingControlUpdate: "floating-control:update",
-  floatingControlVisibilityChanged: "floating-control:visibility-changed",
+  runtimeStateChanged: "runtime-state:changed",
+  runtimeError: "runtime-error",
 } as const;
 
-export type FloatingControlUpdatePayload = {
-  activeToggleKeys: number[];
-  config: AppConfig;
-  detectionRunning: boolean;
-  running: boolean;
-};
+export type RuntimeStateChangedPayload = RuntimeStateSnapshot;
 
-export type FloatingControlVisibilityPayload = {
-  visible: boolean;
-};
-
-export type DetectionRunningChangedPayload = boolean;
+export type RuntimeErrorPayload = BackendAppError;
 
 type AppEventPayloads = {
   // 新增事件时先在这里登记 payload，再通过 emitAppEvent/listenAppEvent 调用。
-  [APP_EVENTS.classDetectionResult]: ClassDetectionResult;
-  [APP_EVENTS.detectionRunningChanged]: DetectionRunningChangedPayload;
-  [APP_EVENTS.appConfigChanged]: AppConfig;
-  [APP_EVENTS.floatingControlDetectionModeToggleRequest]: undefined;
-  [APP_EVENTS.floatingControlToggleRequest]: undefined;
-  [APP_EVENTS.floatingControlUpdate]: FloatingControlUpdatePayload;
-  [APP_EVENTS.floatingControlVisibilityChanged]: FloatingControlVisibilityPayload;
+  [APP_EVENTS.appConfigChanged]: AppStateSnapshot;
+  [APP_EVENTS.runtimeStateChanged]: RuntimeStateChangedPayload;
+  [APP_EVENTS.runtimeError]: RuntimeErrorPayload;
 };
 
 type AppEventName = keyof AppEventPayloads;
@@ -44,7 +28,15 @@ export async function emitAppEvent<EventName extends AppEventName>(
   eventName: EventName,
   payload: AppEventPayloads[EventName],
 ): Promise<void> {
-  if (isMockMode()) return;
+  if (isMockMode()) {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(
+      new CustomEvent(eventName, {
+        detail: payload,
+      }),
+    );
+    return;
+  }
 
   const { emit } = await import("@tauri-apps/api/event");
   await emit(eventName, payload);
@@ -54,7 +46,15 @@ export async function listenAppEvent<EventName extends AppEventName>(
   eventName: EventName,
   handler: (payload: AppEventPayloads[EventName]) => void,
 ): Promise<UnlistenFn> {
-  if (isMockMode()) return () => undefined;
+  if (isMockMode()) {
+    if (typeof window === "undefined") return () => undefined;
+
+    const listener = (event: Event) => {
+      handler((event as CustomEvent<AppEventPayloads[EventName]>).detail);
+    };
+    window.addEventListener(eventName, listener);
+    return () => window.removeEventListener(eventName, listener);
+  }
 
   const { listen } = await import("@tauri-apps/api/event");
   return listen<AppEventPayloads[EventName]>(eventName, (event) => handler(event.payload));

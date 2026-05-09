@@ -1,64 +1,71 @@
-// 前端到 Tauri 后端的命令门面：真实桌面环境走 invoke，浏览器预览走 mock。
-import {
-  hideFloatingControlWindow,
-  showFloatingControlWindow,
-} from "../floating-control/floating-control-manager";
-import {
-  AppConfig,
+// 前端到 Tauri 后端的命令门面：桌面环境统一走 Tauri invoke。
+import type {
+  AppStateSnapshot,
+  AutoRunConfig,
+  BootstrapState,
   ComboDefinition,
-  Hotkey,
+  ComboValidationIssue,
+  EffectRule,
   KeyBinding,
-  LogLevelSetting,
+  RuntimeDiagnostics,
+  SettingsConfig,
 } from "../types/app-config";
-import type { ClassCategory } from "../types/class-catalog";
-import type { RuntimeDiagnostics } from "../types/runtime-diagnostics";
+import { normalizeAppError, TauriCommandError } from "../types/app-error";
 import { isTauriEnvironment } from "./tauri-env";
-import { mockInvoke } from "./mock-tauri";
 
 async function invokeCommand<T>(name: string, args?: Record<string, unknown>): Promise<T> {
-  if (isTauriEnvironment()) {
-    // 动态导入让 Vite 浏览器预览不必解析 Tauri 运行时模块。
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke<T>(name, args);
+  if (!isTauriEnvironment()) {
+    throw new TauriCommandError({
+      kind: "transport",
+      message: "当前能力只能在 Tauri 桌面环境中调用。",
+    });
   }
 
-  return mockInvoke<T>(name, args);
+  const { invoke } = await import("@tauri-apps/api/core");
+  try {
+    return await invoke<T>(name, args);
+  } catch (reason) {
+    throw normalizeAppError(reason);
+  }
 }
 
+const setFloatingControlVisible = (visible: boolean) =>
+  invokeCommand<AppStateSnapshot>("set_floating_control_visible", { visible });
+
 export const tauriCommands = {
-  loadAppConfig: () => invokeCommand<AppConfig>("load_app_config"),
-  loadClassCategories: () => invokeCommand<ClassCategory[]>("load_class_categories"),
+  loadBootstrap: () => invokeCommand<BootstrapState>("load_bootstrap"),
   loadRuntimeDiagnostics: () => invokeCommand<RuntimeDiagnostics>("load_runtime_diagnostics"),
-  saveAppConfig: (config: AppConfig) => invokeCommand<AppConfig>("save_app_config", { config }),
+  saveSettings: (settings: SettingsConfig) =>
+    invokeCommand<AppStateSnapshot>("save_settings", { settings }),
+  updateGlobalKeys: (keys: KeyBinding[]) =>
+    invokeCommand<AppStateSnapshot>("update_global_keys", { keys }),
+  updateProfileKeys: (configId: string, keys: KeyBinding[]) =>
+    invokeCommand<AppStateSnapshot>("update_profile_keys", { configId, keys }),
+  updateProfileEffectRule: (configId: string, effectRule: EffectRule) =>
+    invokeCommand<AppStateSnapshot>("update_profile_effect_rule", { configId, effectRule }),
+  updateProfileCombos: (configId: string, combos: ComboDefinition[]) =>
+    invokeCommand<AppStateSnapshot>("update_profile_combos", { configId, combos }),
+  updateAutoRun: (patch: Partial<AutoRunConfig>) =>
+    invokeCommand<AppStateSnapshot>("update_auto_run", { patch }),
+  addCustomConfig: (name: string) => invokeCommand<AppStateSnapshot>("add_custom_config", { name }),
+  deleteCustomConfig: (configId: string) =>
+    invokeCommand<AppStateSnapshot>("delete_custom_config", { configId }),
+  setClassHidden: (classId: string, hidden: boolean) =>
+    invokeCommand<AppStateSnapshot>("set_class_hidden", { classId, hidden }),
   selectActiveConfig: (activeClassId: string | null) =>
-    invokeCommand<AppConfig>("select_active_config", { activeClassId }),
-  setRuntimeKeys: (keys: KeyBinding[]) => invokeCommand<boolean>("set_runtime_keys", { keys }),
-  setRuntimeProfile: (keys: KeyBinding[], combos: ComboDefinition[]) =>
-    invokeCommand<boolean>("set_runtime_profile", { keys, combos }),
-  startAssistant: (keys: KeyBinding[], combos: ComboDefinition[]) =>
-    invokeCommand<boolean>("start_assistant", { keys, combos }),
-  stopAssistant: () => invokeCommand<boolean>("stop_assistant"),
-  isAssistantRunning: () => invokeCommand<boolean>("is_assistant_running"),
-  startAutofire: (keys: KeyBinding[]) => invokeCommand<boolean>("start_autofire", { keys }),
-  stopAutofire: () => invokeCommand<boolean>("stop_autofire"),
-  startAutoRun: () => invokeCommand<boolean>("start_auto_run"),
-  stopAutoRun: () => invokeCommand<boolean>("stop_auto_run"),
-  isAutoRunRunning: () => invokeCommand<boolean>("is_auto_run_running"),
-  startDetection: (intervalMs: number) => invokeCommand<boolean>("start_detection", { intervalMs }),
-  stopDetection: () => invokeCommand<boolean>("stop_detection"),
-  isDetectionRunning: () => invokeCommand<boolean>("is_detection_running"),
-  isRunning: () => invokeCommand<boolean>("is_running"),
-  activeAutofireToggleKeys: () => invokeCommand<number[]>("active_autofire_toggle_keys"),
-  registerToggleHotkey: (hotkey: Hotkey | null) =>
-    invokeCommand<boolean>("register_toggle_hotkey", { hotkey }),
-  updateTrayCurrentConfig: (label: string) =>
-    invokeCommand<boolean>("update_tray_current_config", { label }),
-  setLogLevel: (logLevel: LogLevelSetting) => invokeCommand<boolean>("set_log_level", { logLevel }),
+    invokeCommand<AppStateSnapshot>("select_active_config", { activeClassId }),
+  setAssistantRunning: (running: boolean) =>
+    invokeCommand<boolean>("set_assistant_running", { running }),
+  validateComboDefs: (configId: string, combos: ComboDefinition[]) =>
+    invokeCommand<ComboValidationIssue[]>("validate_combo_defs", { configId, combos }),
   isElevated: () => invokeCommand<boolean>("is_elevated"),
   showErrorMessage: (message: string) => invokeCommand<boolean>("show_error_message", { message }),
   restartAsAdmin: () => invokeCommand<boolean>("restart_as_admin"),
-  setLaunchAtStartup: (enabled: boolean) =>
-    invokeCommand<boolean>("set_launch_at_startup", { enabled }),
-  showFloatingControlWindow,
-  hideFloatingControlWindow,
+  setFloatingControlVisible,
+  showFloatingControlWindow: () => setFloatingControlVisible(true),
+  hideFloatingControlWindow: () => setFloatingControlVisible(false),
+  updateFloatingControlPosition: (x: number, y: number) =>
+    invokeCommand<AppStateSnapshot>("update_floating_control_position", { x, y }),
+  minimizeMainWindow: () => invokeCommand<void>("minimize_main_window"),
+  closeMainWindow: () => invokeCommand<void>("close_main_window"),
 };

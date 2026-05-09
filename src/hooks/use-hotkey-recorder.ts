@@ -1,20 +1,20 @@
 import { useEffect } from "react";
 import { browserKeyToVk, isModifierVk, isValidComboHotkey } from "../lib/browser-keys";
-import { type AppConfig, type Hotkey } from "../lib/tauri";
-import type { ConfigUpdater } from "./use-app-config";
+import type { AppStateSnapshot, Hotkey } from "../types/app-config";
+import type { SettingsUpdater } from "../store/app-store-context";
 
 type UseHotkeyRecorderOptions = {
   recordingHotkey: boolean;
   setRecordingHotkey: (recordingHotkey: boolean) => void;
   showMessage: (message: string) => void;
-  updateConfig: (updater: ConfigUpdater) => Promise<AppConfig | null>;
+  updateSettings: (updater: SettingsUpdater) => Promise<AppStateSnapshot | null>;
 };
 
 export function useHotkeyRecorder({
   recordingHotkey,
   setRecordingHotkey,
   showMessage,
-  updateConfig,
+  updateSettings,
 }: UseHotkeyRecorderOptions) {
   useEffect(() => {
     if (!recordingHotkey) return;
@@ -36,10 +36,10 @@ export function useHotkeyRecorder({
         vk,
       };
       setRecordingHotkey(false);
-      void updateConfig((currentConfig) => ({ ...currentConfig, toggleHotkey: nextHotkey }));
+      void updateSettings((currentSettings) => ({ ...currentSettings, toggleHotkey: nextHotkey }));
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [recordingHotkey, setRecordingHotkey, showMessage, updateConfig]);
+  }, [recordingHotkey, setRecordingHotkey, showMessage, updateSettings]);
 }

@@ -23,7 +23,7 @@ DNF 按键连发工具，当前实现为 Tauri 2 + React 19 + Tailwind CSS 4 + R
 - 悬浮窗：前端创建的唯一悬浮控制窗，可选择配置并启动/停止助手。
 - 托盘：打开主界面、打开/关闭悬浮窗、显示当前配置、退出。
 - 设置：开机时启动、启动到托盘、启动时自动打开悬浮窗。
-- 浏览器预览（仅开发者）：`pnpm dev:web` 下自动进入 mock 模式。
+- 浏览器静态预览（仅开发者）：`pnpm dev:web` 只用于查看前端布局，不提供后端业务 mock。
 
 ## 技术栈
 
@@ -34,6 +34,12 @@ DNF 按键连发工具，当前实现为 Tauri 2 + React 19 + Tailwind CSS 4 + R
 | 后端 | Rust、Win32 API、windows crate |
 | 包管理 | pnpm |
 | 检查 | TypeScript、oxlint、ESLint、oxfmt、Clippy、rustfmt |
+
+## 架构
+
+当前架构以“清晰前端层、清晰 IPC 层、按职责切分的 Rust 后端”为边界。后端统一管理配置、职业目录、有效配置和运行时状态；前端负责展示、编辑和发送用户意图。
+
+详细说明见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
 
 ## 常用命令
 
@@ -60,8 +66,8 @@ pnpm rust:lint
 
 ## 项目结构
 
-- `src/`：React 前端、配置工具、按键映射、悬浮窗页面。
-- `src-tauri/`：Tauri 配置、Rust 命令、托盘、Win32 连发核心。
+- `src/`：React 前端、全局 store、feature 页面、IPC client、共享 DTO。
+- `src-tauri/`：Tauri 配置、IPC 命令、配置仓库、领域规则、运行时协调、Win32 能力。
 - `docs/`：当前仍适用的项目文档与踩坑记录。
 - `scripts/check-encoding.mjs`：中文文本和编码安全检查。
 
@@ -69,13 +75,13 @@ pnpm rust:lint
 
 - Windows。
 - 键盘钩子和输入模拟通常需要管理员权限。
-- 仅前端预览可以在浏览器 mock 模式下运行，但悬浮窗和 Win32 连发能力只在 Tauri 应用中可用。
+- 仅前端预览只适合静态检查界面；配置读取、悬浮窗和 Win32 连发能力只在 Tauri 应用中可用。
 
 ## 安装与构建
 
 1. 安装 Node.js、pnpm 和 Rust 工具链。
 2. 运行 `pnpm install` 安装前端依赖。
-3. 运行 `pnpm dev:web` 预览前端 mock 模式，或运行 `pnpm dev` 启动 Tauri 开发模式。
+3. 运行 `pnpm dev:web` 静态预览前端界面，或运行 `pnpm dev` 启动 Tauri 开发模式。
 4. 发布前运行 `pnpm check:all`。
 5. 运行 `pnpm build` 打包桌面应用。
 

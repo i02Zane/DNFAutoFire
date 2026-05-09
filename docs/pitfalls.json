@@ -2,7 +2,7 @@
   "$schema": "project-pitfalls",
   "project": "DNF按键助手",
   "description": "记录当前 Tauri + React + Rust 版本仍然适用的踩坑经验。",
-  "lastUpdated": "2026-04-30",
+  "lastUpdated": "2026-05-09",
   "pitfalls": [
     {
       "id": "sendinput-game-mode",
@@ -33,31 +33,33 @@
       ]
     },
     {
-      "id": "frontend-owned-floating-control",
+      "id": "backend-owned-floating-control",
       "category": "托盘与悬浮窗",
-      "title": "悬浮窗必须由前端创建，并通过事件与托盘同步",
+      "title": "悬浮窗可见性属于后端运行态",
       "currentStatus": "仍适用",
-      "rootCause": "悬浮窗渲染 React 页面，需要由前端 WebviewWindow 创建；Rust 侧只负责托盘请求和菜单文字同步。",
+      "rootCause": "Hermes 架构收口后，主窗口生命周期、悬浮窗创建/显示/隐藏/位置恢复和托盘文字都归后端管理；前端只渲染视图和发送用户意图。",
       "currentImplementation": {
         "files": [
           "src/app.tsx",
-          "src/lib/tauri.ts",
-          "src/lib/floating-control.ts",
-          "src/features/floating-control/floating-control-window.tsx",
-          "src-tauri/src/lib.rs"
+          "src/lib/tauri-commands.ts",
+          "src/features/floating-control/floating-control-view.tsx",
+          "src-tauri/src/runtime/mod.rs",
+          "src-tauri/src/platform/floating_control.rs",
+          "src-tauri/src/platform/tray.rs",
+          "src-tauri/src/app/events.rs"
         ],
         "eventFlow": [
-          "Rust 托盘触发 floating-control:toggle-request",
-          "主窗口前端更新 floatingControlEnabled 状态",
-          "前端调用 showFloatingControlWindow 或 hideFloatingControlWindow",
-          "前端发送 floating-control:visibility-changed",
-          "Rust 更新托盘菜单文字"
+          "主窗口或托盘发送显示/隐藏/最小化/关闭意图给后端",
+          "RuntimeSupervisor 调用 FloatingControlRuntime 创建或隐藏 floating-control 窗口",
+          "后端把悬浮窗位置持久化到 settings.json",
+          "后端通过 runtime-state:changed 下发 floatingControlVisible",
+          "前端 store 和托盘菜单都消费同一运行态快照"
         ]
       },
       "keepInMind": [
-        "不要新增 Rust 侧 floating-control 窗口创建链路",
+        "不要恢复 floating-control:toggle-request / floating-control:visibility-changed 前端同步链路",
         "悬浮窗 URL 固定为 /?view=floating-control",
-        "可见性状态由主窗口统一维护"
+        "窗口生命周期和位置恢复由后端管理，React 视图只负责内容、尺寸和位置变更上报"
       ]
     },
     {
@@ -88,26 +90,28 @@
       ]
     },
     {
-      "id": "ocr-class-detection-abandoned",
+      "id": "class-detection-is-not-ocr",
       "category": "职业识别",
-      "title": "游戏内职业名 OCR 不作为当前方案",
-      "currentStatus": "配置结构保留，当前界面以手动职业配置为主",
-      "rootCause": "DNF 游戏字体、描边、阴影和小尺寸区域会导致 OCR 识别不稳定。此前多种 OCR 方案都无法稳定识别职业名。",
+      "title": "自动职业识别不走 OCR 路线",
+      "currentStatus": "仍适用",
+      "rootCause": "DNF 游戏字体、描边、阴影和小尺寸区域会导致 OCR 识别不稳定。当前自动识别基于后端画面捕获与像素/图标特征匹配，不解析职业名文本。",
       "currentImplementation": {
         "files": [
           "src/lib/config.ts",
-          "src/lib/tauri.ts",
-          "src-tauri/src/lib.rs"
+          "src/lib/tauri-commands.ts",
+          "src-tauri/src/vision/detection.rs",
+          "src-tauri/src/domain/mod.rs",
+          "src-tauri/src/runtime/mod.rs"
         ],
         "details": [
-          "detection 字段仍在配置 schema 中保留",
-          "当前没有后端 OCR 或模板匹配命令",
-          "用户通过主界面或悬浮窗手动选择当前配置"
+          "detection 属于 settings.json，由后端运行时按需懒加载",
+          "职业目录和识别 ID 映射由后端 domain 维护",
+          "职业识别、主界面和悬浮窗切配置都走后端 active config 入口"
         ]
       },
       "keepInMind": [
-        "不要把 detection 字段描述为已完成的自动识别功能",
-        "如重启自动识别方案，优先评估模板匹配或其他非 OCR 路线"
+        "不要重新引入前端职业数据表或 OCR 职业名识别路径",
+        "识别失败、失焦或捕获错误时应遵循后端运行时状态，不在前端自行切全局配置"
       ]
     },
     {
@@ -146,7 +150,7 @@
     },
     {
       "category": "前端预览",
-      "practice": "只验证 React 界面时使用 pnpm dev:web，Tauri API 会自动进入 mock 模式"
+      "practice": "只验证 React 界面时使用 pnpm dev:web，它只提供静态预览，不再模拟后端业务"
     },
     {
       "category": "Windows 能力",

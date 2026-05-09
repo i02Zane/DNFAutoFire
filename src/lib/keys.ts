@@ -4,6 +4,13 @@ export type KeyOption = {
   label: string;
 };
 
+export type HotkeyDisplayValue = {
+  ctrl: boolean;
+  alt: boolean;
+  shift: boolean;
+  vk: number;
+};
+
 export const keyOptions: KeyOption[] = [
   { vk: 0x41, label: "A" },
   { vk: 0x42, label: "B" },
@@ -110,11 +117,21 @@ export function keyLabel(vk: number): string {
   return keyOptions.find((option) => option.vk === vk)?.label ?? `VK ${vk}`;
 }
 
-export function normalizeInterval(value: number): number {
-  if (!Number.isFinite(value)) return 20;
-  return Math.max(10, Math.min(1000, Math.trunc(value)));
+export function toU16Integer(value: number, fallback: number, min = 0): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(0xffff, Math.trunc(value)));
 }
 
 export function hotkeyKeyLabel(vk: number): string {
   return keyLabel(vk);
+}
+
+export function hotkeyDisplay(hotkey: HotkeyDisplayValue | null): string {
+  if (!hotkey) return "未设置";
+  const parts: string[] = [];
+  if (hotkey.ctrl) parts.push("Ctrl");
+  if (hotkey.alt) parts.push("Alt");
+  if (hotkey.shift) parts.push("Shift");
+  parts.push(keyLabel(hotkey.vk));
+  return parts.join(" + ");
 }

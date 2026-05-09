@@ -12,6 +12,7 @@ const textExtensions = new Set([
   ".md",
   ".mjs",
   ".rs",
+  ".nsh",
   ".toml",
   ".ts",
   ".tsx",
