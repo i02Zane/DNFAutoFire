@@ -25,9 +25,10 @@ describe("useComboDraft", () => {
       if (combos[0]?.name === "") return staleValidation.promise;
       return [];
     });
+    const profiles = createProfiles();
     const { result } = renderHook(() =>
       useComboDraft({
-        profiles: createProfiles(),
+        profiles,
         selectedConfigId: "class-a",
         onCombosChange,
         onValidateComboDefs,
@@ -54,9 +55,10 @@ describe("useComboDraft", () => {
       async () => true,
     );
     const onValidateComboDefs = vi.fn(async () => []);
+    const profiles = createProfiles();
     const { result } = renderHook(() =>
       useComboDraft({
-        profiles: createProfiles(),
+        profiles,
         selectedConfigId: "class-a",
         onCombosChange,
         onValidateComboDefs,
@@ -188,8 +190,8 @@ function pressKey(code: string): KeyboardEvent {
   const event = new KeyboardEvent("keydown", {
     bubbles: true,
     cancelable: true,
-    code,
   });
+  Object.defineProperty(event, "code", { value: code });
   act(() => {
     window.dispatchEvent(event);
   });

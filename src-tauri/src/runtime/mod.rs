@@ -16,8 +16,10 @@ use crate::platform::hotkey::{register_windows_hotkey, validate_hotkey, HotkeyRe
 use parking_lot::Mutex;
 use serde::Serialize;
 use services::{to_fire_key_configs, ProfileService, SettingsService, WindowService};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 use tauri::AppHandle;
 use ts_rs::TS;
 
@@ -121,6 +123,7 @@ pub(crate) struct RuntimeSupervisor {
     window_service: WindowService,
     hotkey_registration: Arc<Mutex<Option<HotkeyRegistration>>>,
     revision: Arc<AtomicU64>,
+    runtime_status_monitor_started: Arc<AtomicBool>,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -405,6 +408,7 @@ impl RuntimeSupervisor {
             window_service,
             hotkey_registration,
             revision: Arc::new(AtomicU64::new(1)),
+            runtime_status_monitor_started: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -443,6 +447,7 @@ impl RuntimeSupervisor {
     }
 
     pub(crate) fn initialize(&self, app: &AppHandle) {
+        self.start_runtime_status_monitor(app.clone());
         let settings = self.config_store.settings();
         if let Err(error) = self.settings_service.sync_current_launch_at_startup() {
             self.emit_error(app, error);
@@ -700,6 +705,38 @@ impl RuntimeSupervisor {
 
     fn emit_runtime_snapshot_at(&self, app: &AppHandle, revision: u64) {
         emit_runtime_state_changed(app, &self.snapshot_at(revision));
+    }
+
+    fn start_runtime_status_monitor(&self, app: AppHandle) {
+        if self
+            .runtime_status_monitor_started
+            .swap(true, Ordering::SeqCst)
+        {
+            return;
+        }
+
+        let supervisor = self.clone();
+        if let Err(error) = thread::Builder::new()
+            .name("RuntimeStatusMonitor".to_string())
+            .spawn(move || {
+                let mut last_active_toggle_keys = supervisor.assistant_runtime.active_toggle_keys();
+                loop {
+                    thread::sleep(Duration::from_millis(30));
+
+                    let active_toggle_keys = supervisor.assistant_runtime.active_toggle_keys();
+                    if active_toggle_keys == last_active_toggle_keys {
+                        continue;
+                    }
+
+                    last_active_toggle_keys = active_toggle_keys;
+                    supervisor.emit_snapshot(&app);
+                }
+            })
+        {
+            self.runtime_status_monitor_started
+                .store(false, Ordering::SeqCst);
+            tracing::warn!(error = %error, "启动运行态监视线程失败");
+        }
     }
 
     fn current_revision(&self) -> u64 {
