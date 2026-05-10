@@ -542,42 +542,63 @@ mod windows_impl {
                 return Ok(None);
             }
 
-            if runtime.tag_image.is_none()
-                || runtime.tag_image_width != region.width
-                || runtime.tag_image_height != region.height
-            {
-                let image =
-                    AprilTagImage::zeros_with_stride(region.width, region.height, region.width)
-                        .map_err(|_| std::io::Error::other("无法创建 AprilTag 图像"))?;
-                runtime.tag_image = Some(image);
-                runtime.tag_image_width = region.width;
-                runtime.tag_image_height = region.height;
-            }
-
-            let image = runtime.tag_image.as_mut().expect("tag image should exist");
-            {
-                let dst = image.as_slice_mut();
-                for y in 0..region.height {
-                    let src_row = &raw_data[(region.y + y) * row_pitch + region.x * 4
-                        ..(region.y + y) * row_pitch + (region.x + region.width) * 4];
-                    let dst_row = &mut dst[y * region.width..(y + 1) * region.width];
-                    for (x, pixel) in dst_row.iter_mut().enumerate() {
-                        let offset = x * 4;
-                        let b = src_row[offset] as u16;
-                        let g = src_row[offset + 1] as u16;
-                        let r = src_row[offset + 2] as u16;
-                        *pixel = ((r * 77 + g * 150 + b * 29) >> 8) as u8;
-                    }
+            for scale in [1, 2, 3] {
+                prepare_apriltag_image(runtime, raw_data, row_pitch, region, scale)?;
+                let image = runtime.tag_image.as_ref().expect("tag image should exist");
+                let detections = runtime.detector.detect(image);
+                let best = detections
+                    .into_iter()
+                    .max_by(|a, b| a.decision_margin().total_cmp(&b.decision_margin()));
+                if let Some(best) = best.and_then(|best| u16::try_from(best.id()).ok()) {
+                    return Ok(Some(best));
                 }
             }
 
-            let detections = runtime.detector.detect(&*image);
-            let best = detections
-                .into_iter()
-                .max_by(|a, b| a.decision_margin().total_cmp(&b.decision_margin()));
-
-            Ok(best.and_then(|best| u16::try_from(best.id()).ok()))
+            Ok(None)
         })
+    }
+
+    fn prepare_apriltag_image(
+        runtime: &mut AprilTagRuntime,
+        raw_data: &[u8],
+        row_pitch: usize,
+        region: DetectionRegion,
+        scale: usize,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let image_width = region.width.saturating_mul(scale);
+        let image_height = region.height.saturating_mul(scale);
+        if runtime.tag_image.is_none()
+            || runtime.tag_image_width != image_width
+            || runtime.tag_image_height != image_height
+        {
+            let image = AprilTagImage::zeros_with_stride(image_width, image_height, image_width)
+                .map_err(|_| std::io::Error::other("无法创建 AprilTag 图像"))?;
+            runtime.tag_image = Some(image);
+            runtime.tag_image_width = image_width;
+            runtime.tag_image_height = image_height;
+        }
+
+        let image = runtime.tag_image.as_mut().expect("tag image should exist");
+        let dst = image.as_slice_mut();
+        for y in 0..region.height {
+            let src_row = &raw_data[(region.y + y) * row_pitch + region.x * 4
+                ..(region.y + y) * row_pitch + (region.x + region.width) * 4];
+            for x in 0..region.width {
+                let offset = x * 4;
+                let b = src_row[offset] as u16;
+                let g = src_row[offset + 1] as u16;
+                let r = src_row[offset + 2] as u16;
+                let gray = ((r * 77 + g * 150 + b * 29) >> 8) as u8;
+                for scaled_y in y * scale..(y + 1) * scale {
+                    let dst_row = &mut dst[scaled_y * image_width..(scaled_y + 1) * image_width];
+                    for pixel in &mut dst_row[x * scale..(x + 1) * scale] {
+                        *pixel = gray;
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn with_apriltag_runtime<T>(
