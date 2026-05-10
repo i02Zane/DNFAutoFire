@@ -50,7 +50,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     settingsRef.current = snapshot.settings;
     profilesRef.current = snapshot.profiles;
     snapshotRef.current = snapshot;
-    dispatch(appActions.stateSnapshotApplied(snapshot));
+    dispatch(appActions.stateSnapshotApplied(snapshot, force));
     return true;
   }, []);
 

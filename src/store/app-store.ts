@@ -64,6 +64,7 @@ export type AppStoreAction =
   | {
       type: "stateSnapshotApplied";
       snapshot: AppStateSnapshot;
+      force?: boolean;
     }
   | {
       type: "runtimeStateApplied";
@@ -106,9 +107,10 @@ export const appActions = {
     type: "bootstrapLoaded",
     bootstrap,
   }),
-  stateSnapshotApplied: (snapshot: AppStateSnapshot): AppStoreAction => ({
+  stateSnapshotApplied: (snapshot: AppStateSnapshot, force = false): AppStoreAction => ({
     type: "stateSnapshotApplied",
     snapshot,
+    force,
   }),
   runtimeStateApplied: (runtime: RuntimeStateChangedPayload): AppStoreAction => ({
     type: "runtimeStateApplied",
@@ -131,7 +133,7 @@ export function appReducer(state: AppStoreState, action: AppStoreAction): AppSto
         runtime: action.bootstrap.runtime,
       };
     case "stateSnapshotApplied":
-      if (action.snapshot.revision < state.revision) return state;
+      if (!action.force && action.snapshot.revision < state.revision) return state;
       return {
         ...state,
         revision: action.snapshot.revision,
