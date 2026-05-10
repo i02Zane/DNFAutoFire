@@ -62,7 +62,7 @@ export function RuntimeDiagnosticsPage({ onError }: RuntimeDiagnosticsPageProps)
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <StatusCard
               items={[
                 ["引擎", diagnostics.autofire.running ? "运行中" : "已停止"],
@@ -92,18 +92,18 @@ export function RuntimeDiagnosticsPage({ onError }: RuntimeDiagnosticsPageProps)
               ]}
               title="一键连招"
             />
-          </div>
+            <StatusCard
+              items={[
+                ["设置", diagnostics.autoRun.enabled ? "已启用" : "已关闭"],
+                ["引擎", diagnostics.autoRun.running ? "运行中" : "已停止"],
+                ["左键", keyLabel(diagnostics.autoRun.leftVk)],
+                ["右键", keyLabel(diagnostics.autoRun.rightVk)],
+                ["脉冲延迟", `${diagnostics.autoRun.pulseDelayMs} ms`],
+              ]}
+              title="一键奔跑"
+            />
 
-          <StatusCard
-            items={[
-              ["设置", diagnostics.autoRun.enabled ? "已启用" : "已关闭"],
-              ["引擎", diagnostics.autoRun.running ? "运行中" : "已停止"],
-              ["左键", keyLabel(diagnostics.autoRun.leftVk)],
-              ["右键", keyLabel(diagnostics.autoRun.rightVk)],
-              ["脉冲延迟", `${diagnostics.autoRun.pulseDelayMs} ms`],
-            ]}
-            title="一键奔跑"
-          />
+          </div>
 
           <div className="rounded border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-800">

@@ -132,7 +132,7 @@ function AutoRunPulseDelayInput({
     <div className="w-[132px]">
       <label className="grid h-9 grid-cols-[1fr_auto] items-center gap-2 rounded border border-slate-300 bg-slate-50 px-3 focus-within:border-blue-400 focus-within:bg-white focus-within:ring-1 focus-within:ring-blue-100">
         <input
-          className="h-8 min-w-0 border-0 bg-transparent text-right text-sm font-semibold text-slate-900 outline-none"
+          className="h-8 min-w-0 border-0 bg-transparent text-sm font-semibold text-slate-900 outline-none"
           max={MAX_AUTO_RUN_PULSE_DELAY_MS}
           min={MIN_AUTO_RUN_PULSE_DELAY_MS}
           type="number"
