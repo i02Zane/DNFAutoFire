@@ -39,8 +39,11 @@ export const tauriCommands = {
     invokeCommand<AppStateSnapshot>("save_settings", { settings }),
   updateGlobalKeys: (keys: KeyBinding[]) =>
     invokeCommand<AppStateSnapshot>("update_global_keys", { keys }),
+  addGlobalKey: () => invokeCommand<AppStateSnapshot>("add_global_key"),
   updateProfileKeys: (configId: string, keys: KeyBinding[]) =>
     invokeCommand<AppStateSnapshot>("update_profile_keys", { configId, keys }),
+  addProfileKey: (configId: string) =>
+    invokeCommand<AppStateSnapshot>("add_profile_key", { configId }),
   updateProfileEffectRule: (configId: string, effectRule: EffectRule) =>
     invokeCommand<AppStateSnapshot>("update_profile_effect_rule", { configId, effectRule }),
   updateProfileCombos: (configId: string, combos: ComboDefinition[]) =>

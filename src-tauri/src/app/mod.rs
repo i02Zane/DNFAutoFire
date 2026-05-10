@@ -80,6 +80,8 @@ pub fn run() {
             crate::ipc::bootstrap::load_bootstrap,
             crate::ipc::diagnostics::load_runtime_diagnostics,
             crate::ipc::profiles::add_custom_config,
+            crate::ipc::profiles::add_global_key,
+            crate::ipc::profiles::add_profile_key,
             crate::ipc::profiles::delete_custom_config,
             crate::ipc::profiles::set_class_hidden,
             crate::ipc::profiles::update_auto_run,

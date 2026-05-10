@@ -28,6 +28,15 @@ pub(crate) fn update_global_keys(
 }
 
 #[tauri::command]
+pub(crate) fn add_global_key(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+) -> AppResult<AppStateSnapshot> {
+    tracing::debug!("请求新增全局连发键");
+    state.runtime_supervisor.add_global_key(&app)
+}
+
+#[tauri::command]
 pub(crate) fn update_profile_keys(
     config_id: String,
     keys: Vec<KeyBinding>,
@@ -38,6 +47,16 @@ pub(crate) fn update_profile_keys(
     state
         .runtime_supervisor
         .update_profile_keys(&app, config_id, keys)
+}
+
+#[tauri::command]
+pub(crate) fn add_profile_key(
+    config_id: String,
+    app: tauri::AppHandle,
+    state: State<AppState>,
+) -> AppResult<AppStateSnapshot> {
+    tracing::debug!(config_id, "请求新增配置连发键");
+    state.runtime_supervisor.add_profile_key(&app, config_id)
 }
 
 #[tauri::command]

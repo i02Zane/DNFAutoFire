@@ -1,6 +1,5 @@
 import { useCallback, useMemo } from "react";
 import { getConfigDisplayName, getProfileConfig } from "../../lib/config";
-import { keyOptions } from "../../lib/keys";
 import { tauriCommands } from "../../lib/tauri-commands";
 import type { AppStoreContextValue } from "../../store/app-store-context";
 import type {
@@ -94,10 +93,13 @@ export function useAutofireActions({
   );
 
   const addKey = useCallback(() => {
-    const nextKey = keyOptions.find((option) => !selectedKeys.some((key) => key.vk === option.vk));
-    if (!nextKey) return;
-    updateSelectedKeys([...selectedKeys, { vk: nextKey.vk, intervalMs: 20, mode: "hold" }]);
-  }, [selectedKeys, updateSelectedKeys]);
+    if (!target) return;
+    if (target.type === "global") {
+      void mutateSnapshot(() => tauriCommands.addGlobalKey());
+      return;
+    }
+    void mutateSnapshot(() => tauriCommands.addProfileKey(target.configId));
+  }, [mutateSnapshot, target]);
 
   const updateKey = useCallback(
     (index: number, patch: Partial<KeyBinding>) => {

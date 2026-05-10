@@ -541,6 +541,11 @@ impl RuntimeSupervisor {
         Ok(self.after_profiles_changed(app))
     }
 
+    pub(crate) fn add_global_key(&self, app: &AppHandle) -> AppResult<AppStateSnapshot> {
+        self.profile_service.add_global_key()?;
+        Ok(self.after_profiles_changed(app))
+    }
+
     pub(crate) fn update_profile_keys(
         &self,
         app: &AppHandle,
@@ -548,6 +553,15 @@ impl RuntimeSupervisor {
         keys: Vec<KeyBinding>,
     ) -> AppResult<AppStateSnapshot> {
         self.profile_service.update_profile_keys(config_id, keys)?;
+        Ok(self.after_profiles_changed(app))
+    }
+
+    pub(crate) fn add_profile_key(
+        &self,
+        app: &AppHandle,
+        config_id: String,
+    ) -> AppResult<AppStateSnapshot> {
+        self.profile_service.add_profile_key(config_id)?;
         Ok(self.after_profiles_changed(app))
     }
 
@@ -759,9 +773,10 @@ impl RuntimeSupervisor {
 mod tests {
     use super::*;
     use crate::config::{
-        ClassConfig, FireKeyMode, LogLevelSetting, SettingsConfig, PROFILES_CONFIG_FILE_NAME,
-        SETTINGS_CONFIG_FILE_NAME,
+        ClassConfig, ComboAction, FireKeyMode, LogLevelSetting, SettingsConfig,
+        AUTOFIRE_KEY_CANDIDATE_VKS, PROFILES_CONFIG_FILE_NAME, SETTINGS_CONFIG_FILE_NAME,
     };
+    use crate::error::AppErrorKind;
     use crate::runtime::services::{SettingsService, SettingsSideEffects};
     use std::fs;
 
@@ -832,6 +847,64 @@ mod tests {
             25
         );
         assert!(harness.dir.join(PROFILES_CONFIG_FILE_NAME).exists());
+    }
+
+    #[test]
+    fn add_global_key_uses_first_candidate_allowed_by_backend_validation() {
+        let harness = RuntimeHarness::new("add-global-key-validation");
+        let mut profiles = ProfilesConfig::default();
+        profiles.classes.insert(
+            BLADE_MASTER_ID.to_string(),
+            ClassConfig {
+                enabled_keys: Vec::new(),
+                effect_rule: EffectRule::GlobalAndClass,
+                combo_defs: vec![combo_with_trigger("combo-a", 0x41)],
+            },
+        );
+        harness
+            .config_store
+            .replace_profiles_for_import(profiles)
+            .unwrap();
+
+        harness.supervisor.profile_service.add_global_key().unwrap();
+
+        let profiles = harness.config_store.profiles();
+        assert!(profiles.global_keys.iter().any(|key| key.vk == 0x42));
+        assert!(!profiles.global_keys.iter().any(|key| key.vk == 0x41));
+    }
+
+    #[test]
+    fn add_profile_key_returns_validation_error_when_no_candidate_is_available() {
+        let harness = RuntimeHarness::new("add-profile-key-full");
+        let mut profiles = ProfilesConfig::default();
+        profiles.classes.insert(
+            BLADE_MASTER_ID.to_string(),
+            ClassConfig {
+                enabled_keys: AUTOFIRE_KEY_CANDIDATE_VKS
+                    .iter()
+                    .map(|vk| KeyBinding {
+                        vk: *vk,
+                        interval_ms: 20,
+                        mode: FireKeyMode::Hold,
+                    })
+                    .collect(),
+                effect_rule: EffectRule::ClassOnly,
+                combo_defs: Vec::new(),
+            },
+        );
+        harness
+            .config_store
+            .replace_profiles_for_import(profiles)
+            .unwrap();
+
+        let error = harness
+            .supervisor
+            .profile_service
+            .add_profile_key(BLADE_MASTER_ID.to_string())
+            .unwrap_err();
+
+        assert_eq!(error.kind, AppErrorKind::Validation);
+        assert!(error.message.contains("没有可用的连发按键"));
     }
 
     #[test]
@@ -945,6 +1018,22 @@ mod tests {
             _next_settings: &SettingsConfig,
         ) -> AppResult<()> {
             Err(AppError::startup("side effect failed"))
+        }
+    }
+
+    fn combo_with_trigger(id: &str, trigger_vk: u16) -> ComboDefinition {
+        ComboDefinition {
+            id: id.to_string(),
+            name: id.to_string(),
+            enabled: true,
+            trigger_vk: Some(trigger_vk),
+            actions: vec![ComboAction::Tap {
+                id: format!("{id}-action"),
+                label: "测试动作".to_string(),
+                vk: Some(0x58),
+                hold_ms: 30,
+                wait_after_ms: 100,
+            }],
         }
     }
 

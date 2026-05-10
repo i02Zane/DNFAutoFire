@@ -1,8 +1,9 @@
 //! 运行时 service：封装具体配置写入和窗口操作，RuntimeSupervisor 只负责编排。
 
 use crate::config::{
-    AutoRunConfig, ClassConfig, ComboDefinition, ConfigRepository, CustomConfig, EffectRule,
-    KeyBinding, ProfilesConfig, SettingsConfig, WindowPosition,
+    validate_profiles_config, AutoRunConfig, ClassConfig, ComboDefinition, ConfigRepository,
+    CustomConfig, EffectRule, FireKeyMode, KeyBinding, ProfilesConfig, SettingsConfig,
+    WindowPosition, AUTOFIRE_KEY_CANDIDATE_VKS, DEFAULT_INTERVAL_MS,
 };
 use crate::engines::FireKeyConfig;
 use crate::error::{AppError, AppResult};
@@ -101,6 +102,18 @@ impl ProfileService {
         })
     }
 
+    pub(crate) fn add_global_key(&self) -> AppResult<()> {
+        self.update_profiles(|profiles| {
+            let Some(keys) = first_valid_keys(profiles, |candidate_profiles, candidate_key| {
+                candidate_profiles.global_keys.push(candidate_key);
+            }) else {
+                return Err(AppError::validation("没有可用的连发按键。"));
+            };
+            profiles.global_keys = keys.global_keys;
+            Ok(())
+        })
+    }
+
     pub(crate) fn update_profile_keys(
         &self,
         config_id: String,
@@ -123,6 +136,18 @@ impl ProfileService {
             if !class_config_has_data(&next_config) {
                 profiles.classes.remove(&config_id);
             }
+            Ok(())
+        })
+    }
+
+    pub(crate) fn add_profile_key(&self, config_id: String) -> AppResult<()> {
+        self.update_profiles(|profiles| {
+            let Some(keys) = first_valid_keys(profiles, |candidate_profiles, candidate_key| {
+                push_profile_key(candidate_profiles, &config_id, candidate_key);
+            }) else {
+                return Err(AppError::validation("没有可用的连发按键。"));
+            };
+            replace_profile_keys(profiles, &config_id, keys);
             Ok(())
         })
     }
@@ -382,6 +407,59 @@ fn normalize_key_bindings(keys: Vec<KeyBinding>) -> Vec<KeyBinding> {
             ..key
         })
         .collect()
+}
+
+fn first_valid_keys(
+    profiles: &ProfilesConfig,
+    push_candidate: impl Fn(&mut ProfilesConfig, KeyBinding),
+) -> Option<ProfilesConfig> {
+    for vk in AUTOFIRE_KEY_CANDIDATE_VKS {
+        let mut candidate_profiles = profiles.clone();
+        push_candidate(&mut candidate_profiles, default_autofire_key(vk));
+        if validate_profiles_config(&candidate_profiles).is_ok() {
+            return Some(candidate_profiles);
+        }
+    }
+    None
+}
+
+fn default_autofire_key(vk: u16) -> KeyBinding {
+    KeyBinding {
+        vk,
+        interval_ms: DEFAULT_INTERVAL_MS,
+        mode: FireKeyMode::Hold,
+    }
+}
+
+fn push_profile_key(profiles: &mut ProfilesConfig, config_id: &str, key: KeyBinding) {
+    if let Some(custom_config) = profiles.custom_configs.get_mut(config_id) {
+        custom_config.enabled_keys.push(key);
+        return;
+    }
+
+    profiles
+        .classes
+        .entry(config_id.to_string())
+        .or_insert_with(empty_class_config)
+        .enabled_keys
+        .push(key);
+}
+
+fn replace_profile_keys(profiles: &mut ProfilesConfig, config_id: &str, source: ProfilesConfig) {
+    if let Some(source_config) = source.custom_configs.get(config_id) {
+        if let Some(custom_config) = profiles.custom_configs.get_mut(config_id) {
+            custom_config.enabled_keys = source_config.enabled_keys.clone();
+        }
+        return;
+    }
+
+    if let Some(source_config) = source.classes.get(config_id) {
+        profiles
+            .classes
+            .entry(config_id.to_string())
+            .or_insert_with(empty_class_config)
+            .enabled_keys = source_config.enabled_keys.clone();
+    }
 }
 
 fn next_custom_config_id(profiles: &ProfilesConfig) -> String {
