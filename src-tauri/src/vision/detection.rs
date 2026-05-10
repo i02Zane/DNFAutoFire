@@ -542,7 +542,7 @@ mod windows_impl {
                 return Ok(None);
             }
 
-            for scale in [1, 2, 3] {
+            for scale in [1, 2] {
                 prepare_apriltag_image(runtime, raw_data, row_pitch, region, scale)?;
                 let image = runtime.tag_image.as_ref().expect("tag image should exist");
                 let detections = runtime.detector.detect(image);
