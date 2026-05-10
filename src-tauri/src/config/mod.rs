@@ -227,16 +227,16 @@ mod tests {
     #[test]
     fn validate_config_rejects_invalid_auto_run_pulse_delay() {
         let mut config = minimal_config();
-        config.settings.auto_run_pulse_delay_ms = 30;
+        config.settings.auto_run_pulse_delay_ms = 201;
 
         assert!(validate_legacy_config(&config)
             .unwrap_err()
             .message
-            .contains("一键奔跑脉冲间隔只能是"));
+            .contains("一键奔跑双击间隔必须在"));
     }
 
     #[test]
-    fn load_config_normalizes_auto_run_pulse_delay() {
+    fn load_config_preserves_valid_auto_run_pulse_delay() {
         let dir = unique_temp_dir("auto-run-pulse-delay");
         fs::write(
             dir.join("app-config.json"),
@@ -257,7 +257,7 @@ mod tests {
 
         let config = load_config_from_path(&dir.join("app-config.json"));
 
-        assert_eq!(config.settings.auto_run_pulse_delay_ms, 25);
+        assert_eq!(config.settings.auto_run_pulse_delay_ms, 30);
 
         fs::remove_dir_all(dir).unwrap();
     }

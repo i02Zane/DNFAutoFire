@@ -18,11 +18,6 @@ export const COMBO_COMMAND_ALLOWED_VKS = new Set([
 ]);
 
 export const DETECTION_INTERVAL_OPTIONS = [100, 200, 500, 1000] as const;
-export const AUTO_RUN_PULSE_DELAY_OPTIONS = [
-  { label: "短", value: 10 },
-  { label: "中", value: 25 },
-  { label: "长", value: 50 },
-] as const;
 export const DETECTION_NO_MATCH_POLICY_OPTIONS: {
   label: string;
   value: DetectionNoMatchPolicy;

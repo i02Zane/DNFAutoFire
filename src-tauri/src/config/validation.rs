@@ -100,28 +100,17 @@ fn is_supported_detection_interval(value: u64) -> bool {
 }
 
 pub(crate) fn validate_auto_run_pulse_delay_ms(pulse_delay_ms: u64) -> AppResult<()> {
-    if is_supported_auto_run_pulse_delay(pulse_delay_ms) {
+    if (MIN_AUTO_RUN_PULSE_DELAY_MS..=MAX_AUTO_RUN_PULSE_DELAY_MS).contains(&pulse_delay_ms) {
         return Ok(());
     }
 
     Err(AppError::validation(format!(
-        "一键奔跑脉冲间隔只能是 {} / {} / {} 毫秒",
-        AUTO_RUN_PULSE_DELAY_OPTIONS[0],
-        AUTO_RUN_PULSE_DELAY_OPTIONS[1],
-        AUTO_RUN_PULSE_DELAY_OPTIONS[2]
+        "一键奔跑双击间隔必须在 {MIN_AUTO_RUN_PULSE_DELAY_MS}-{MAX_AUTO_RUN_PULSE_DELAY_MS} 毫秒之间"
     )))
 }
 
 pub(crate) fn normalize_auto_run_pulse_delay_ms(value: u64) -> u64 {
-    if is_supported_auto_run_pulse_delay(value) {
-        value
-    } else {
-        DEFAULT_AUTO_RUN_PULSE_DELAY_MS
-    }
-}
-
-fn is_supported_auto_run_pulse_delay(value: u64) -> bool {
-    AUTO_RUN_PULSE_DELAY_OPTIONS.contains(&value)
+    value
 }
 
 pub(crate) fn validate_keys(keys: &[KeyBinding]) -> AppResult<()> {

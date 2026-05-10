@@ -200,12 +200,7 @@ impl ProfileService {
 
     pub(crate) fn update_auto_run(&self, auto_run: AutoRunConfig) -> AppResult<()> {
         self.update_profiles(|profiles| {
-            profiles.auto_run = AutoRunConfig {
-                pulse_delay_ms: crate::config::normalize_auto_run_pulse_delay_ms(
-                    auto_run.pulse_delay_ms,
-                ),
-                ..auto_run
-            };
+            profiles.auto_run = auto_run;
             Ok(())
         })
     }
