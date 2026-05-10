@@ -37,7 +37,7 @@ export type FloatingControlSettings = { position: WindowPosition | null, };
 
 export type AutoRunConfig = { enabled: boolean, leftVk: number, rightVk: number, pulseDelayMs: number, };
 
-export type SettingsConfig = { version: number, launchAtStartup: boolean, startMinimized: boolean, minimizeToTray: boolean, openFloatingControlOnStart: boolean, logLevel: LogLevelSetting, toggleHotkey: Hotkey | null, detection: DetectionSettings, floatingControl: FloatingControlSettings, };
+export type SettingsConfig = { version: number, launchAtStartup: boolean, startMinimized: boolean, minimizeToTray: boolean, closeButtonMinimizes: boolean, openFloatingControlOnStart: boolean, logLevel: LogLevelSetting, toggleHotkey: Hotkey | null, detection: DetectionSettings, floatingControl: FloatingControlSettings, };
 
 export type ProfilesConfig = { version: number, globalKeys: Array<KeyBinding>, comboDefs: Array<ComboDefinition>, classes: Record<string, ClassConfig>, customConfigs: Record<string, CustomConfig>, hiddenClassIds: Array<string>, activeClassId: string | null, autoRun: AutoRunConfig, };
 

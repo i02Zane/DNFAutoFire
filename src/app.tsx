@@ -96,8 +96,14 @@ function MainApp() {
   const detectionRunning = runtime.detectionRunning;
   const activeToggleKeys = runtime.activeToggleKeys;
   const floatingControlVisible = runtime.floatingControlVisible;
-  const { launchAtStartup, minimizeToTray, openFloatingControlOnStart, startMinimized, logLevel } =
-    settings;
+  const {
+    closeButtonMinimizes,
+    launchAtStartup,
+    minimizeToTray,
+    openFloatingControlOnStart,
+    startMinimized,
+    logLevel,
+  } = settings;
   const { autoRun } = profiles;
   const {
     enabled: detectionEnabled,
@@ -150,6 +156,7 @@ function MainApp() {
     mutateSnapshot,
   });
   const {
+    updateCloseButtonMinimizes,
     updateDetectionEnabled,
     updateDetectionInterval,
     updateDetectionNoMatchPolicy,
@@ -288,6 +295,7 @@ function MainApp() {
         />
       ) : page === "settings" ? (
         <SettingsPage
+          closeButtonMinimizes={closeButtonMinimizes}
           detectionEnabled={detectionEnabled}
           detectionIntervalMs={detectionIntervalMs}
           detectionNoMatchPolicy={noMatchPolicy}
@@ -296,6 +304,7 @@ function MainApp() {
           minimizeToTray={minimizeToTray}
           openFloatingControlOnStart={openFloatingControlOnStart}
           startMinimized={startMinimized}
+          onCloseButtonMinimizesChange={updateCloseButtonMinimizes}
           onDetectionEnabledChange={updateDetectionEnabled}
           onDetectionIntervalChange={updateDetectionInterval}
           onDetectionNoMatchPolicyChange={updateDetectionNoMatchPolicy}

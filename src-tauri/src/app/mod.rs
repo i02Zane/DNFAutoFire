@@ -16,7 +16,18 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .on_window_event(|window, event| {
             if window.label() == "main" {
-                if let tauri::WindowEvent::CloseRequested { .. } = event {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    let app_handle = window.app_handle();
+                    let state = app_handle.state::<AppState>();
+                    if state.config_store.settings().close_button_minimizes {
+                        api.prevent_close();
+                        if let Err(error) =
+                            state.runtime_supervisor.minimize_main_window(app_handle)
+                        {
+                            tracing::warn!(error = %error, "关闭按钮最小化主窗口失败");
+                        }
+                        return;
+                    }
                     window.app_handle().exit(0);
                 }
             }

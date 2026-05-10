@@ -74,6 +74,16 @@ export function useSettingsActions({ updateSettings }: UseSettingsActionsOptions
     [updateSettings],
   );
 
+  const updateCloseButtonMinimizes = useCallback(
+    (checked: boolean) => {
+      void updateSettings((currentSettings) => ({
+        ...currentSettings,
+        closeButtonMinimizes: checked,
+      }));
+    },
+    [updateSettings],
+  );
+
   const updateLogLevel = useCallback(
     (level: LogLevelSetting) => {
       void updateSettings((currentSettings) => ({ ...currentSettings, logLevel: level }));
@@ -92,6 +102,7 @@ export function useSettingsActions({ updateSettings }: UseSettingsActionsOptions
   );
 
   return {
+    updateCloseButtonMinimizes,
     updateDetectionEnabled,
     updateDetectionInterval,
     updateDetectionNoMatchPolicy,

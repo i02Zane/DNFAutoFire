@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS_CONFIG: SettingsConfig = {
   launchAtStartup: false,
   startMinimized: false,
   minimizeToTray: false,
+  closeButtonMinimizes: false,
   openFloatingControlOnStart: false,
   logLevel: DEFAULT_LOG_LEVEL,
   toggleHotkey: { ctrl: true, alt: false, shift: false, vk: 0x77 },

@@ -236,6 +236,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub minimize_to_tray: bool,
     #[serde(default)]
+    pub close_button_minimizes: bool,
+    #[serde(default)]
     pub open_floating_control_on_start: bool,
     #[serde(default)]
     pub auto_run_enabled: bool,
@@ -255,6 +257,7 @@ impl Default for AppSettings {
             launch_at_startup: false,
             start_minimized: false,
             minimize_to_tray: false,
+            close_button_minimizes: false,
             open_floating_control_on_start: false,
             auto_run_enabled: false,
             auto_run_left_vk: super::defaults::default_auto_run_left_vk(),
@@ -309,6 +312,8 @@ pub struct SettingsConfig {
     #[serde(default)]
     pub minimize_to_tray: bool,
     #[serde(default)]
+    pub close_button_minimizes: bool,
+    #[serde(default)]
     pub open_floating_control_on_start: bool,
     #[serde(default)]
     pub log_level: LogLevelSetting,
@@ -327,6 +332,7 @@ impl Default for SettingsConfig {
             launch_at_startup: false,
             start_minimized: false,
             minimize_to_tray: false,
+            close_button_minimizes: false,
             open_floating_control_on_start: false,
             log_level: LogLevelSetting::default(),
             toggle_hotkey: Some(Hotkey {
@@ -433,6 +439,7 @@ impl From<&LegacyAppConfig> for SettingsConfig {
             launch_at_startup: config.settings.launch_at_startup,
             start_minimized: config.settings.start_minimized,
             minimize_to_tray: config.settings.minimize_to_tray,
+            close_button_minimizes: config.settings.close_button_minimizes,
             open_floating_control_on_start: config.settings.open_floating_control_on_start,
             log_level: config.settings.log_level,
             toggle_hotkey: config.toggle_hotkey.clone(),

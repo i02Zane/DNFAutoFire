@@ -82,6 +82,7 @@ pub(crate) fn default_config() -> LegacyAppConfig {
             launch_at_startup: false,
             start_minimized: false,
             minimize_to_tray: false,
+            close_button_minimizes: false,
             open_floating_control_on_start: false,
             auto_run_enabled: false,
             auto_run_left_vk: default_auto_run_left_vk(),

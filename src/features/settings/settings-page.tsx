@@ -13,6 +13,7 @@ const LOG_LEVEL_OPTIONS: { label: string; value: LogLevelSetting }[] = [
 ];
 
 export function SettingsPage({
+  closeButtonMinimizes,
   detectionEnabled,
   detectionIntervalMs,
   detectionNoMatchPolicy,
@@ -22,6 +23,7 @@ export function SettingsPage({
   openFloatingControlOnStart,
   startMinimized,
   onLaunchAtStartupChange,
+  onCloseButtonMinimizesChange,
   onDetectionEnabledChange,
   onDetectionIntervalChange,
   onDetectionNoMatchPolicyChange,
@@ -30,6 +32,7 @@ export function SettingsPage({
   onOpenFloatingControlOnStartChange,
   onStartMinimizedChange,
 }: {
+  closeButtonMinimizes: boolean;
   detectionEnabled: boolean;
   detectionIntervalMs: number;
   detectionNoMatchPolicy: DetectionNoMatchPolicy;
@@ -41,6 +44,7 @@ export function SettingsPage({
   onDetectionEnabledChange: (checked: boolean) => void;
   onDetectionIntervalChange: (intervalMs: number) => void;
   onDetectionNoMatchPolicyChange: (policy: DetectionNoMatchPolicy) => void;
+  onCloseButtonMinimizesChange: (checked: boolean) => void;
   onLaunchAtStartupChange: (checked: boolean) => void;
   onLogLevelChange: (logLevel: LogLevelSetting) => void;
   onMinimizeToTrayChange: (checked: boolean) => void;
@@ -77,6 +81,12 @@ export function SettingsPage({
               description="开启后，最小化按钮会隐藏主窗口到系统托盘；启动时最小化也会按这个方式处理。"
               label="最小化到托盘"
               onChange={onMinimizeToTrayChange}
+            />
+            <SettingsSwitch
+              checked={closeButtonMinimizes}
+              description="开启后，点击关闭按钮时最小化窗口，而不是退出程序。"
+              label="关闭按钮最小化"
+              onChange={onCloseButtonMinimizesChange}
             />
             <SettingsSwitch
               checked={openFloatingControlOnStart}

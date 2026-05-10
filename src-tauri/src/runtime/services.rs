@@ -314,6 +314,10 @@ impl WindowService {
     }
 
     pub(crate) fn close_main_window(&self, app: &AppHandle) -> AppResult<()> {
+        if self.config_store.settings().close_button_minimizes {
+            return self.minimize_main_window(app);
+        }
+
         self.set_floating_control_visible(
             app,
             false,
