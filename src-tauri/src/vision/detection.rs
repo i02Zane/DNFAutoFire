@@ -187,6 +187,12 @@ mod windows_impl {
     #[derive(Debug)]
     struct AprilTagRuntime {
         detector: AprilTagDetector,
+        image_cache_1x: AprilTagImageCache,
+        image_cache_2x: AprilTagImageCache,
+    }
+
+    #[derive(Debug, Default)]
+    struct AprilTagImageCache {
         tag_image: Option<AprilTagImage>,
         tag_image_width: usize,
         tag_image_height: usize,
@@ -526,9 +532,8 @@ mod windows_impl {
 
         Ok(AprilTagRuntime {
             detector,
-            tag_image: None,
-            tag_image_width: 0,
-            tag_image_height: 0,
+            image_cache_1x: AprilTagImageCache::default(),
+            image_cache_2x: AprilTagImageCache::default(),
         })
     }
 
@@ -543,8 +548,12 @@ mod windows_impl {
             }
 
             for scale in [1, 2] {
-                prepare_apriltag_image(runtime, raw_data, row_pitch, region, scale)?;
-                let image = runtime.tag_image.as_ref().expect("tag image should exist");
+                let cache = match scale {
+                    1 => &mut runtime.image_cache_1x,
+                    2 => &mut runtime.image_cache_2x,
+                    _ => unreachable!("unsupported AprilTag upscale"),
+                };
+                let image = prepare_apriltag_image(cache, raw_data, row_pitch, region, scale)?;
                 let detections = runtime.detector.detect(image);
                 let best = detections
                     .into_iter()
@@ -558,27 +567,27 @@ mod windows_impl {
         })
     }
 
-    fn prepare_apriltag_image(
-        runtime: &mut AprilTagRuntime,
+    fn prepare_apriltag_image<'a>(
+        cache: &'a mut AprilTagImageCache,
         raw_data: &[u8],
         row_pitch: usize,
         region: DetectionRegion,
         scale: usize,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<&'a AprilTagImage, Box<dyn std::error::Error + Send + Sync>> {
         let image_width = region.width.saturating_mul(scale);
         let image_height = region.height.saturating_mul(scale);
-        if runtime.tag_image.is_none()
-            || runtime.tag_image_width != image_width
-            || runtime.tag_image_height != image_height
+        if cache.tag_image.is_none()
+            || cache.tag_image_width != image_width
+            || cache.tag_image_height != image_height
         {
             let image = AprilTagImage::zeros_with_stride(image_width, image_height, image_width)
                 .map_err(|_| std::io::Error::other("无法创建 AprilTag 图像"))?;
-            runtime.tag_image = Some(image);
-            runtime.tag_image_width = image_width;
-            runtime.tag_image_height = image_height;
+            cache.tag_image = Some(image);
+            cache.tag_image_width = image_width;
+            cache.tag_image_height = image_height;
         }
 
-        let image = runtime.tag_image.as_mut().expect("tag image should exist");
+        let image = cache.tag_image.as_mut().expect("tag image should exist");
         let dst = image.as_slice_mut();
         for y in 0..region.height {
             let src_row = &raw_data[(region.y + y) * row_pitch + region.x * 4
@@ -598,7 +607,7 @@ mod windows_impl {
             }
         }
 
-        Ok(())
+        Ok(image)
     }
 
     fn with_apriltag_runtime<T>(
