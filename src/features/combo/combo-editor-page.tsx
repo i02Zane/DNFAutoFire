@@ -388,13 +388,11 @@ function ComboBlock({
                   onRecord={onRecord}
                   onUpdate={(patch) => onUpdateAction(action.id, patch)}
                 />
-                {index < combo.actions.length - 1 && (
-                  <WaitBetweenActionsField
-                    issue={getActionIssue(issues, action.id, "waitAfterMs")}
-                    value={action.waitAfterMs}
-                    onChange={(value) => onUpdateAction(action.id, { waitAfterMs: value })}
-                  />
-                )}
+                <WaitBetweenActionsField
+                  issue={getActionIssue(issues, action.id, "waitAfterMs")}
+                  value={action.waitAfterMs}
+                  onChange={(value) => onUpdateAction(action.id, { waitAfterMs: value })}
+                />
               </div>
             ))}
           </div>
