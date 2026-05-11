@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronRight,
   CircleHelp,
+  GripVertical,
   Keyboard,
   Plus,
   Search,
@@ -10,8 +11,8 @@ import {
   Wand2,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
-import type { SVGProps } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { PointerEvent, SVGProps } from "react";
 import {
   countComboCommandDirections,
   getConfigDisplayName,
@@ -56,6 +57,7 @@ export function ComboEditorPage({
     combos,
     deleteAction,
     deleteCombo: deleteComboDraft,
+    moveAction,
     recordingTarget,
     setRecordingTarget,
     updateAction,
@@ -258,6 +260,9 @@ export function ComboEditorPage({
                       onCollapsedChange={() => toggleComboCollapsed(combo.id)}
                       onDelete={() => deleteCombo(combo.id)}
                       onDeleteAction={(actionId) => deleteAction(combo.id, actionId)}
+                      onMoveAction={(sourceActionId, targetActionId, placement) =>
+                        moveAction(combo.id, sourceActionId, targetActionId, placement)
+                      }
                       onRecord={(target) => setRecordingTarget(target)}
                       onUpdate={(patch) => updateCombo(combo.id, patch)}
                       onUpdateAction={(actionId, patch) => updateAction(combo.id, actionId, patch)}
@@ -282,6 +287,7 @@ function ComboBlock({
   onCollapsedChange,
   onDelete,
   onDeleteAction,
+  onMoveAction,
   onRecord,
   onUpdate,
   onUpdateAction,
@@ -294,15 +300,32 @@ function ComboBlock({
   onCollapsedChange: () => void;
   onDelete: () => void;
   onDeleteAction: (actionId: string) => void;
+  onMoveAction: (
+    sourceActionId: string,
+    targetActionId: string,
+    placement: ActionPlacement,
+  ) => void;
   onRecord: (target: RecordingTarget | null) => void;
   onUpdate: (patch: Partial<ComboDefinition>) => void;
   onUpdateAction: (actionId: string, patch: Partial<ComboAction>) => void;
 }) {
+  const [dragState, setDragState] = useState<ActionDragState | null>(null);
+  const dragStateRef = useRef<ActionDragState | null>(null);
   const recordingTrigger =
     recordingTarget?.type === "trigger" && recordingTarget.comboId === combo.id;
   const nameIssue = getComboIssue(issues, "name");
   const triggerIssue = getComboIssue(issues, "trigger");
   const actionsIssue = getComboIssue(issues, "actions");
+
+  function clearDragState() {
+    dragStateRef.current = null;
+    setDragState(null);
+  }
+
+  function updateDragState(nextDragState: ActionDragState) {
+    dragStateRef.current = nextDragState;
+    setDragState(nextDragState);
+  }
 
   return (
     <article className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
@@ -377,15 +400,55 @@ function ComboBlock({
           <FieldError message={actionsIssue?.message} />
           <div className="space-y-1.5">
             {combo.actions.map((action, index) => (
-              <div key={action.id} className="space-y-2">
+              <div
+                key={action.id}
+                data-combo-action-id={action.id}
+                className={`relative space-y-2 rounded transition ${
+                  dragState?.targetActionId === action.id ? "bg-blue-50/35" : ""
+                }`}
+              >
+                {dragState?.targetActionId === action.id && dragState.placement === "before" && (
+                  <div className="absolute inset-x-3 top-0 h-0.5 rounded bg-blue-500" />
+                )}
+                {dragState?.targetActionId === action.id && dragState.placement === "after" && (
+                  <div className="absolute inset-x-3 bottom-0 h-0.5 rounded bg-blue-500" />
+                )}
                 <ActionBlock
                   action={action}
                   comboId={combo.id}
                   index={index}
                   issues={issues.filter((issue) => issue.actionId === action.id)}
+                  dragging={dragState?.sourceActionId === action.id}
                   recordingTarget={recordingTarget}
                   onDelete={() => onDeleteAction(action.id)}
                   onRecord={onRecord}
+                  onMoveCancel={clearDragState}
+                  onMoveEnd={() => {
+                    const currentDragState = dragStateRef.current;
+                    if (currentDragState?.targetActionId) {
+                      onMoveAction(
+                        currentDragState.sourceActionId,
+                        currentDragState.targetActionId,
+                        currentDragState.placement,
+                      );
+                    }
+                    clearDragState();
+                  }}
+                  onMoveStart={() =>
+                    updateDragState({
+                      sourceActionId: action.id,
+                      targetActionId: null,
+                      placement: "after",
+                    })
+                  }
+                  onMoveUpdate={(event) => {
+                    const target = getActionDropTarget(event, action.id);
+                    updateDragState({
+                      sourceActionId: action.id,
+                      targetActionId: target?.actionId ?? null,
+                      placement: target?.placement ?? "after",
+                    });
+                  }}
                   onUpdate={(patch) => onUpdateAction(action.id, patch)}
                 />
                 <WaitBetweenActionsField
@@ -485,8 +548,13 @@ function ActionBlock({
   comboId,
   index,
   issues,
+  dragging,
   recordingTarget,
   onDelete,
+  onMoveCancel,
+  onMoveEnd,
+  onMoveStart,
+  onMoveUpdate,
   onRecord,
   onUpdate,
 }: {
@@ -494,16 +562,53 @@ function ActionBlock({
   comboId: string;
   index: number;
   issues: ComboValidationIssue[];
+  dragging: boolean;
   recordingTarget: RecordingTarget | null;
   onDelete: () => void;
+  onMoveCancel: () => void;
+  onMoveEnd: () => void;
+  onMoveStart: () => void;
+  onMoveUpdate: (event: PointerEvent<HTMLButtonElement>) => void;
   onRecord: (target: RecordingTarget | null) => void;
   onUpdate: (patch: Partial<ComboAction>) => void;
 }) {
   const title = action.type === "tap" ? "快捷栏按键" : "手搓";
 
   return (
-    <div className="grid grid-cols-[40px_minmax(0,1fr)] gap-3 rounded border border-slate-200 bg-slate-50/70 p-3">
+    <div
+      className={`grid grid-cols-[40px_minmax(0,1fr)] gap-3 rounded border border-slate-200 bg-slate-50/70 p-3 ${
+        dragging ? "opacity-70 ring-2 ring-blue-200" : ""
+      }`}
+    >
       <div className="flex flex-col items-center">
+        <button
+          aria-label={`拖动第 ${index + 1} 个技能块调整顺序`}
+          className="mb-1 inline-flex h-8 w-8 touch-none cursor-grab select-none items-center justify-center rounded border border-slate-200 bg-white text-slate-400 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 active:cursor-grabbing"
+          type="button"
+          onPointerCancel={(event) => {
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+              event.currentTarget.releasePointerCapture(event.pointerId);
+            }
+            onMoveCancel();
+          }}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.currentTarget.setPointerCapture(event.pointerId);
+            onMoveStart();
+          }}
+          onPointerMove={(event) => {
+            if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+            onMoveUpdate(event);
+          }}
+          onPointerUp={(event) => {
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+              event.currentTarget.releasePointerCapture(event.pointerId);
+            }
+            onMoveEnd();
+          }}
+        >
+          <GripVertical size={16} />
+        </button>
         <div className="flex h-9 w-9 items-center justify-center rounded border border-blue-200 bg-blue-50 text-sm font-semibold text-blue-700">
           {index + 1}
         </div>
@@ -541,6 +646,41 @@ function ActionBlock({
       </div>
     </div>
   );
+}
+
+type ActionDragState = {
+  sourceActionId: string;
+  targetActionId: string | null;
+  placement: ActionPlacement;
+};
+
+type ActionPlacement = "before" | "after";
+
+type ActionDropTarget = {
+  actionId: string;
+  placement: ActionPlacement;
+};
+
+function getActionDropTarget(
+  event: PointerEvent<HTMLButtonElement>,
+  sourceActionId: string,
+): ActionDropTarget | null {
+  for (const element of document.elementsFromPoint(event.clientX, event.clientY)) {
+    if (!(element instanceof HTMLElement)) continue;
+    const actionElement = element.closest("[data-combo-action-id]");
+    if (!(actionElement instanceof HTMLElement)) continue;
+
+    const actionId = actionElement.dataset.comboActionId;
+    if (!actionId || actionId === sourceActionId) return null;
+
+    const rect = actionElement.getBoundingClientRect();
+    return {
+      actionId,
+      placement: event.clientY < rect.top + rect.height / 2 ? "before" : "after",
+    };
+  }
+
+  return null;
 }
 
 function TapActionEditor({

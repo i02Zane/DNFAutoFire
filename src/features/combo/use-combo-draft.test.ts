@@ -123,6 +123,33 @@ describe("useComboDraft", () => {
     );
     expect(result.current.recordingTarget).toBeNull();
   });
+
+  it("调整动作块顺序时连同等待时间一起保存", async () => {
+    const onCombosChange = vi.fn<(configId: string, combos: ComboDefinition[]) => Promise<boolean>>(
+      async () => true,
+    );
+    const onValidateComboDefs = vi.fn(async () => []);
+    const profiles = createProfiles();
+    const { result } = renderHook(() =>
+      useComboDraft({
+        profiles,
+        selectedConfigId: "class-a",
+        onCombosChange,
+        onValidateComboDefs,
+      }),
+    );
+    await waitFor(() => expect(onValidateComboDefs).toHaveBeenCalled());
+
+    act(() => result.current.moveAction("combo-1", "command-1", "tap-1", "before"));
+
+    await waitFor(() =>
+      expect(lastSavedCombos(onCombosChange)[0]?.actions.map((action) => action.id)).toEqual([
+        "command-1",
+        "tap-1",
+      ]),
+    );
+    expect(lastSavedCombos(onCombosChange)[0]?.actions[0]?.waitAfterMs).toBe(222);
+  });
 });
 
 function createProfiles(combos: ComboDefinition[] = [createCombo()]): ProfilesConfig {
@@ -162,7 +189,7 @@ function createCombo(): ComboDefinition {
         label: "",
         vk: null,
         holdMs: 30,
-        waitAfterMs: 100,
+        waitAfterMs: 111,
       },
       {
         id: "command-1",
@@ -171,7 +198,7 @@ function createCombo(): ComboDefinition {
         keys: [],
         keyHoldMs: 30,
         keyGapMs: 20,
-        waitAfterMs: 100,
+        waitAfterMs: 222,
       },
     ],
   };

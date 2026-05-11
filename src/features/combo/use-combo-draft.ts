@@ -224,6 +224,28 @@ export function useComboDraft({
     [combos, updateCombos],
   );
 
+  const moveAction = useCallback(
+    (
+      comboId: string,
+      sourceActionId: string,
+      targetActionId: string,
+      placement: ActionPlacement,
+    ) => {
+      if (sourceActionId === targetActionId) return;
+      updateCombos(
+        combos.map((combo) =>
+          combo.id === comboId
+            ? {
+                ...combo,
+                actions: moveActionInList(combo.actions, sourceActionId, targetActionId, placement),
+              }
+            : combo,
+        ),
+      );
+    },
+    [combos, updateCombos],
+  );
+
   return {
     activeConfigId,
     addAction,
@@ -231,6 +253,7 @@ export function useComboDraft({
     combos,
     deleteAction,
     deleteCombo,
+    moveAction,
     recordingTarget,
     setRecordingTarget,
     updateAction,
@@ -264,6 +287,30 @@ function patchAction(action: ComboAction, patch: Partial<ComboAction>): ComboAct
     return { ...action, ...(patch as Partial<ComboTapAction>) };
   }
   return { ...action, ...(patch as Partial<ComboCommandAction>) };
+}
+
+type ActionPlacement = "before" | "after";
+
+function moveActionInList(
+  actions: ComboAction[],
+  sourceActionId: string,
+  targetActionId: string,
+  placement: ActionPlacement,
+): ComboAction[] {
+  const sourceIndex = actions.findIndex((action) => action.id === sourceActionId);
+  const targetIndex = actions.findIndex((action) => action.id === targetActionId);
+  if (sourceIndex < 0 || targetIndex < 0) return actions;
+
+  const nextActions = [...actions];
+  const [sourceAction] = nextActions.splice(sourceIndex, 1);
+  if (!sourceAction) return actions;
+
+  let insertIndex = targetIndex + (placement === "after" ? 1 : 0);
+  if (sourceIndex < insertIndex) {
+    insertIndex -= 1;
+  }
+  nextActions.splice(insertIndex, 0, sourceAction);
+  return nextActions;
 }
 
 function createCombo(): ComboDefinition {
