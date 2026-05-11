@@ -169,7 +169,7 @@ export function AutofirePage({
             <header className="border-b border-slate-200 bg-white px-6 py-5">
               <h2 className="truncate text-xl font-semibold text-slate-900">{selectedTitle}</h2>
               <p className="mt-1 text-xs text-slate-500">
-                按键、模式与间隔会自动保存。1秒=1000毫秒
+                按键、模式与间隔会自动保存。推荐间隔为20-30ms，1秒=1000毫秒。
               </p>
               <p className="mt-1 text-xs text-slate-500">连发模式说明：</p>
               <p className="mt-1 text-xs text-slate-500">1. 长按：需一直按住这个键</p>

@@ -418,7 +418,7 @@ mod windows_impl {
     use crate::platform::hook::{KeyboardHookEvent, KeyboardHookRunner};
     use crate::platform::keyboard::KeyboardDriver;
 
-    const MIN_KEY_HOLD_MS: u64 = 8;
+    const MIN_KEY_HOLD_MS: u64 = 5;
     const MAX_KEY_HOLD_MS: u64 = 15;
     const SEND_STATS_LOG_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -832,7 +832,7 @@ mod windows_impl {
     }
 
     fn key_hold_ms(interval_ms: u64) -> u64 {
-        (interval_ms / 3).clamp(MIN_KEY_HOLD_MS, MAX_KEY_HOLD_MS)
+        (interval_ms / 2).clamp(MIN_KEY_HOLD_MS, MAX_KEY_HOLD_MS)
     }
 
     fn set_timer_resolution(high_precision: bool) {
