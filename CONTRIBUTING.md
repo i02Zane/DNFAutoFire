@@ -53,6 +53,8 @@ pnpm types:check    # 检查生成类型是否过期
 - 不读写 `node_modules/`、`src-tauri/gen/`、`src-tauri/target/`。
 - 跨前后端契约改动必须同步类型、实现、校验、迁移、文档和测试。
 - 改动 Rust DTO、IPC payload、结构化错误或 snapshot 时，必须运行 `pnpm generate:types` 并提交更新后的 `src/generated/backend-types.ts`。
+- 从应用版本 `0.5.0` 开始，`settings.json` 和 `profiles.json` 都按已有用户数据处理。配置 schema 结构变更必须同步默认值、校验、迁移、测试和 schema version。
+- 同一发布周期内，同一个配置文件的 schema version 只递增一次；开发期间不要因为多次字段调整反复加版本号，发布前统一确认本轮是否需要递增。
 - 变更优先在独立分支上完成，再合并到 `main`，保持主干提交整洁。
 
 ## 修改中

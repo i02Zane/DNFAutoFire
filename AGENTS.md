@@ -47,6 +47,7 @@
 - 前端通过 `src/lib/tauri-commands.ts` 导出的 `tauriCommands.*` 调用后端，不在页面中散落底层 Tauri API。
 - 配置文件拆为 `{exe_dir}/configs/settings.json` 和 `{exe_dir}/configs/profiles.json`；旧版 `{exe_dir}/configs/app-config.json` 仅作为迁移来源。
 - 当前 schema 版本：`settings.json` 为 `1`，`profiles.json` 为 `1`，后端通过 bootstrap / 事件下发显式配置快照和运行态快照。
+- 从应用版本 `0.5.0` 开始视为已有用户数据。变更 `settings.json` / `profiles.json` 结构时必须补迁移、校验、测试和对应 schema version；同一发布周期内同一配置文件 schema version 只递增一次，不随每次开发改动反复递增。
 - 跨端 DTO 由 Rust `ts-rs` 生成到 `src/generated/backend-types.ts`；改动 DTO 后运行 `pnpm generate:types` 和 `pnpm types:check`。
 - IPC 错误统一返回 `{ kind, message }` 结构化 `AppError`；前端只保留 transport 兜底，不新增旧字符串错误兼容。
 - `AppStateSnapshot`、`RuntimeStateSnapshot`、bootstrap payload 都带 `revision`，前端必须丢弃旧 revision 事件。
